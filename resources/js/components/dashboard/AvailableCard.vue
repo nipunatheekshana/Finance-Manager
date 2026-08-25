@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { TrendingDown, TrendingUp } from 'lucide-vue-next'
+import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-vue-next'
 import MoneyText from '@/components/common/MoneyText.vue'
 import { formatDateRange } from '@/composables/useDates'
 import { amountToNumber } from '@/composables/useCurrency'
@@ -40,15 +40,49 @@ const belowExpected = computed(
       </p>
     </div>
 
-    <div class="grid grid-cols-2 divide-x divide-line">
+    <!-- Irregular earners care about the pot and its runway, not a pay day. -->
+    <div v-if="salary.holding_pot" class="grid grid-cols-2 divide-x divide-line">
       <div class="px-5 py-3.5">
-        <p class="text-xs font-semibold text-ink-subtle">Expected salary</p>
+        <p class="text-xs font-semibold text-ink-subtle">Banked</p>
+        <MoneyText :amount="salary.holding_pot.balance" size="base" class="mt-0.5 block font-semibold" />
+      </div>
+
+      <div class="px-5 py-3.5">
+        <p class="text-xs font-semibold text-ink-subtle">Runway</p>
+        <p class="mt-0.5 flex items-center gap-1.5">
+          <span class="tabular text-base font-semibold text-ink">
+            {{ salary.holding_pot.months === null ? '—' : `${salary.holding_pot.months} mo` }}
+          </span>
+          <span
+            v-if="salary.holding_pot.is_low || salary.holding_pot.is_negative"
+            class="badge bg-warn-soft text-warn"
+          >
+            <AlertTriangle class="h-3 w-3" aria-hidden="true" />
+            Low
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <div v-else class="grid grid-cols-2 divide-x divide-line">
+      <div class="px-5 py-3.5">
+        <p class="text-xs font-semibold text-ink-subtle">
+          {{ salary.has_pay_day ? 'Expected salary' : 'Planned income' }}
+        </p>
         <MoneyText :amount="salary.expected" size="base" class="mt-0.5 block font-semibold" />
       </div>
 
       <div class="px-5 py-3.5">
         <p class="text-xs font-semibold text-ink-subtle">
-          {{ salary.actual === null ? 'Not received yet' : 'Actual salary' }}
+          {{
+            salary.actual === null
+              ? salary.has_pay_day
+                ? 'Not received yet'
+                : 'Received so far'
+              : salary.has_pay_day
+                ? 'Actual salary'
+                : 'Received'
+          }}
         </p>
         <!-- Stacked, so a long figure and the badge never fight for width. -->
         <div class="mt-0.5">

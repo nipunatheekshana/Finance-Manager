@@ -22,7 +22,7 @@ use Illuminate\Support\Collection;
  */
 class BudgetCalculationService
 {
-    public function __construct(private readonly SalaryCycleService $cycles) {}
+    public function __construct(private readonly BudgetCycleService $cycles) {}
 
     /**
      * Discretionary spend inside a date window.

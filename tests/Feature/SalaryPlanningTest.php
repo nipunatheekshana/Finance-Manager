@@ -294,7 +294,7 @@ class SalaryPlanningTest extends TestCase
     {
         $user = $this->makeUser([
             'base_salary' => '280000.00',
-            'salary_day' => 25,
+            'cycle_start_day' => 25,
             'default_buffer' => '20000.00',
             'extra_debt_percentage' => 50,
             'extra_savings_percentage' => 30,

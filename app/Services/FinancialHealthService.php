@@ -215,10 +215,18 @@ class FinancialHealthService
     private function emergencyFund(User $user): array
     {
         $profile = $this->plans->profileFor($user);
-        $salary = Money::of($profile->base_salary);
+
+        // Cover is measured against what the user actually lives on, which for
+        // an irregular earner is their draw rather than a salary.
+        $salary = Money::max($profile->base_salary, $profile->target_draw);
 
         if (! Money::isPositive($salary)) {
-            return $this->factor('emergency_fund', 'Emergency fund', 0.0, 'Set your salary to track emergency cover.');
+            return $this->factor(
+                'emergency_fund',
+                'Emergency fund',
+                0.0,
+                'Set your income to track emergency cover.',
+            );
         }
 
         $total = $this->savings->totalSaved($user->id);
@@ -230,7 +238,7 @@ class FinancialHealthService
             'emergency_fund',
             'Emergency fund',
             $rating,
-            'Your savings cover about '.$months.' months of salary.',
+            'Your savings cover about '.$months.' months of your usual income.',
             ['total_saved' => $total, 'target' => $target, 'months_covered' => $months],
         );
     }

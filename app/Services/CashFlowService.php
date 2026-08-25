@@ -18,7 +18,7 @@ class CashFlowService
 {
     public function __construct(
         private readonly BudgetCalculationService $budgets,
-        private readonly SalaryCycleService $cycles,
+        private readonly BudgetCycleService $cycles,
         private readonly RecurringTransactionService $recurring,
     ) {}
 
@@ -201,13 +201,14 @@ class CashFlowService
         // The salary that funds the next cycle, if it lands before this one ends.
         $profile = $plan->user->financialProfile;
         if ($profile !== null) {
-            $nextSalary = $this->cycles->salaryDate(
+            $nextSalary = $this->cycles->cycleStartDate(
                 $end->addDay()->year,
                 $end->addDay()->month,
-                $profile->salary_day
+                $profile->cycle_start_day
             );
 
-            if ($nextSalary->betweenIncluded($today, $end)) {
+            // Only a salaried account has a predictable pay date to plot.
+            if ($profile->hasSalary() && $nextSalary->betweenIncluded($today, $end)) {
                 $events[] = [
                     'date' => $nextSalary->toDateString(),
                     'kind' => 'income',
@@ -267,15 +268,17 @@ class CashFlowService
 
         $profile = $user->financialProfile;
         if ($profile !== null) {
-            $salary = $this->cycles->salaryDate($year, $month, $profile->salary_day);
-            $events[] = [
-                'date' => $salary->toDateString(),
-                'kind' => 'salary',
-                'icon' => 'banknote',
-                'name' => 'Salary',
-                'amount' => Money::of($profile->base_salary),
-                'direction' => 'in',
-            ];
+            if ($profile->hasSalary()) {
+                $salary = $this->cycles->cycleStartDate($year, $month, $profile->cycle_start_day);
+                $events[] = [
+                    'date' => $salary->toDateString(),
+                    'kind' => 'salary',
+                    'icon' => 'banknote',
+                    'name' => 'Salary',
+                    'amount' => Money::of($profile->base_salary),
+                    'direction' => 'in',
+                ];
+            }
         }
 
         foreach ($user->recurringTransactions()->active()->get() as $recurring) {

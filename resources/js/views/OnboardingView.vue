@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Check, CreditCard, PiggyBank, Plus, Receipt, Trash2, Wallet } from 'lucide-vue-next'
+import {
+  ArrowLeft, ArrowRight, Building2, Check, CreditCard, Laptop, Layers,
+  PiggyBank, Plus, Receipt, Store, Trash2, Wallet,
+} from 'lucide-vue-next'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import TextField from '@/components/common/TextField.vue'
 import SelectField from '@/components/common/SelectField.vue'
@@ -9,7 +12,7 @@ import MoneyText from '@/components/common/MoneyText.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
-import type { DebtType, Frequency } from '@/types'
+import type { DebtType, Frequency, FundingMethod, IncomeMode } from '@/types'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -50,8 +53,11 @@ interface GoalRow {
 }
 
 const form = reactive({
+  income_mode: 'salaried' as IncomeMode,
+  funding_method: null as FundingMethod | null,
   base_salary: '',
-  salary_day: '25',
+  target_draw: '',
+  cycle_start_day: '25',
   has_extra_income: false,
   default_buffer: '',
   recurring: [] as RecurringRow[],
@@ -59,8 +65,20 @@ const form = reactive({
   savings_goals: [] as GoalRow[],
 })
 
+const MODES: Array<{ value: IncomeMode; label: string; description: string; icon: typeof Wallet }> = [
+  { value: 'salaried', label: 'Employed', description: 'A regular salary on the same day each month.', icon: Building2 },
+  { value: 'self_employed', label: 'Freelance or project work', description: 'Income per client, project or invoice.', icon: Laptop },
+  { value: 'business', label: 'Business owner', description: 'Takings that vary day to day.', icon: Store },
+  { value: 'hybrid', label: 'Both', description: 'A salary plus income from your own work.', icon: Layers },
+]
+
+/** Which figures step 1 needs depends entirely on the mode. */
+const needsSalary = computed(() => form.income_mode === 'salaried' || form.income_mode === 'hybrid')
+const needsDraw = computed(() => form.income_mode !== 'salaried')
+const usesPayDay = computed(() => needsSalary.value)
+
 const STEPS = [
-  { title: 'Your salary', description: 'What comes in, and when.', icon: Wallet },
+  { title: 'How you earn', description: 'This shapes how your plan works.', icon: Wallet },
   { title: 'Recurring expenses', description: 'The bills you pay every month.', icon: Receipt },
   { title: 'Debts', description: 'Credit cards, installments and loans.', icon: CreditCard },
   { title: 'Savings goals', description: 'What you are putting money aside for.', icon: PiggyBank },
@@ -95,7 +113,9 @@ const WEEKDAY_OPTIONS = [
 
 const canContinue = computed(() => {
   if (step.value === 0) {
-    return Number.parseFloat(form.base_salary) > 0 && Number(form.salary_day) >= 1
+    const salaryOk = !needsSalary.value || Number.parseFloat(form.base_salary) > 0
+    const drawOk = !needsDraw.value || Number.parseFloat(form.target_draw) > 0
+    return salaryOk && drawOk && Number(form.cycle_start_day) >= 1
   }
   return true
 })
@@ -153,8 +173,11 @@ function decimal(value: string): string | undefined {
 /** Build the payload, dropping incomplete rows rather than failing on them. */
 function payload(): Record<string, unknown> {
   return {
-    base_salary: decimal(form.base_salary),
-    salary_day: Number(form.salary_day),
+    income_mode: form.income_mode,
+    funding_method: form.funding_method ?? undefined,
+    base_salary: needsSalary.value ? decimal(form.base_salary) : undefined,
+    target_draw: needsDraw.value ? decimal(form.target_draw) : undefined,
+    cycle_start_day: Number(form.cycle_start_day),
     has_extra_income: form.has_extra_income,
     default_buffer: decimal(form.default_buffer) ?? '0.00',
 
@@ -271,25 +294,72 @@ async function skip(): Promise<void> {
     </header>
 
     <div class="flex-1 space-y-5">
-      <!-- Step 1 — salary -->
+      <!-- Step 1 — how you earn, then the figures that mode needs -->
       <template v-if="step === 0">
+        <div class="space-y-2.5" role="radiogroup" aria-label="How do you earn?">
+          <button
+            v-for="mode in MODES"
+            :key="mode.value"
+            type="button"
+            role="radio"
+            :aria-checked="form.income_mode === mode.value"
+            class="w-full rounded-[var(--radius-card)] border p-3.5 text-left transition"
+            :class="
+              form.income_mode === mode.value
+                ? 'border-brand bg-brand-soft'
+                : 'border-line bg-raised hover:border-ink-subtle'
+            "
+            @click="form.income_mode = mode.value"
+          >
+            <div class="flex items-start gap-3">
+              <component
+                :is="mode.icon"
+                class="mt-0.5 h-5 w-5 shrink-0"
+                :class="form.income_mode === mode.value ? 'text-brand' : 'text-ink-subtle'"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-ink">{{ mode.label }}</p>
+                <p class="mt-0.5 text-sm text-ink-muted">{{ mode.description }}</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <p v-if="errors.income_mode" class="text-sm text-over">{{ errors.income_mode }}</p>
+
         <MoneyInput
+          v-if="needsSalary"
           v-model="form.base_salary"
           large
-          autofocus
-          label="What is your base monthly salary?"
+          label="What is your monthly salary?"
           :error="errors.base_salary"
         />
 
+        <!-- The draw is the idea that makes lumpy income workable. -->
+        <div v-if="needsDraw">
+          <MoneyInput
+            v-model="form.target_draw"
+            :large="!needsSalary"
+            label="How much do you want to live on each month?"
+            hint="Income goes into a pot and you pay yourself this steadily, so a thin month does not wreck your budget. You can change it any time."
+            :error="errors.target_draw"
+          />
+        </div>
+
         <TextField
-          v-model="form.salary_day"
-          label="What day do you normally receive it?"
+          v-model="form.cycle_start_day"
+          :label="usesPayDay ? 'What day are you usually paid?' : 'What day does your month start?'"
           type="number"
           inputmode="numeric"
           min="1"
           max="31"
-          hint="Your monthly cycle runs from this day to the day before the next one."
-          :error="errors.salary_day"
+          :hint="
+            usesPayDay
+              ? 'Your cycle runs from this day to the day before the next one.'
+              : 'Leave at 1 to budget by the calendar month.'
+          "
+          :error="errors.cycle_start_day"
         />
 
         <label class="card flex min-h-14 cursor-pointer items-center justify-between gap-3 p-4">

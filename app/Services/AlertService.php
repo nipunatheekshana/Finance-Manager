@@ -6,6 +6,7 @@ use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
 use App\Models\Debt;
 use App\Models\Expense;
+use App\Models\FinancialProfile;
 use App\Models\FinancialAlert;
 use App\Models\User;
 use App\Support\Money;
@@ -24,7 +25,7 @@ class AlertService
     public function __construct(
         private readonly BudgetCalculationService $budgets,
         private readonly FinancialPlanService $plans,
-        private readonly SalaryCycleService $cycles,
+        private readonly BudgetCycleService $cycles,
         private readonly RecurringTransactionService $recurring,
     ) {}
 
@@ -95,12 +96,13 @@ class AlertService
         $today = ($today ?? CarbonImmutable::today())->startOfDay();
         $profile = $this->plans->profileFor($user);
 
-        $this->checkSalaryDay($user, $today, $profile->salary_day);
+        $this->checkSalaryDay($user, $today, $profile);
         $this->checkUpcomingBills($user, $today);
         $this->checkDebtDueDates($user, $today);
         $this->checkSavingsGoals($user, $today);
 
         $this->checkCycleSurplus($user, $today);
+        $this->checkIncomeHealth($user, $today);
 
         $plan = $this->plans->activePlanFor($user, $today);
 
@@ -129,16 +131,18 @@ class AlertService
             ->get();
     }
 
-    private function checkSalaryDay(User $user, CarbonImmutable $today, int $salaryDay): void
+    private function checkSalaryDay(User $user, CarbonImmutable $today, FinancialProfile $profile): void
     {
-        $thisMonthSalary = $this->cycles->salaryDate($today->year, $today->month, $salaryDay);
-        $nextMonth = $today->addMonthNoOverflow();
-        $nextSalary = $this->cycles->salaryDate($nextMonth->year, $nextMonth->month, $salaryDay);
+        // A pay day only exists for accounts that actually draw a salary.
+        if (! $profile->hasSalary()) {
+            return;
+        }
 
-        $upcoming = $thisMonthSalary->gte($today) ? $thisMonthSalary : $nextSalary;
+        $thisMonthSalary = $this->cycles->cycleStartDate($today->year, $today->month, $profile->cycle_start_day);
+        $upcoming = $this->cycles->nextPayDate($profile, $today);
 
         if ($today->isSameDay($thisMonthSalary)) {
-            $period = $this->cycles->planPeriodFor($today, $salaryDay);
+            $period = $this->cycles->periodFor($today, $profile);
             $plan = $user->monthlyPlans()
                 ->where('year', $period['year'])
                 ->where('month', $period['month'])
@@ -399,6 +403,134 @@ class AlertService
         );
     }
 
+    /**
+     * The checks that only matter when income is irregular: is there enough
+     * banked to keep drawing, is anyone late paying, and is this cycle short.
+     */
+    private function checkIncomeHealth(User $user, CarbonImmutable $today): void
+    {
+        $profile = $user->financialProfile;
+
+        if ($profile === null || ! $profile->hasIrregularIncome()) {
+            return;
+        }
+
+        $forecast = app(IncomeForecastService::class);
+
+        // ── Runway ────────────────────────────────────────────────────────
+        if ($profile->funding_method->usesHoldingPot()) {
+            $runway = $forecast->runway($user);
+
+            if ($runway['is_negative']) {
+                $this->raise(
+                    $user,
+                    AlertType::LowRunway,
+                    'You have drawn more than you have earned',
+                    'Your pot is empty. Either lower what you pay yourself or bring income forward.',
+                    AlertSeverity::Critical,
+                    reference: 'runway',
+                    data: ['balance' => $runway['balance']],
+                    actionLabel: 'Review income',
+                    actionRoute: '/income',
+                    on: $today,
+                );
+            } elseif ($runway['is_low']) {
+                $this->raise(
+                    $user,
+                    AlertType::LowRunway,
+                    'Less than a month of runway left',
+                    'LKR '.number_format((float) $runway['balance'], 2).' banked against a draw of LKR '
+                        .number_format((float) $runway['draw'], 2).' a month.',
+                    AlertSeverity::Warning,
+                    reference: 'runway',
+                    data: ['months' => $runway['months']],
+                    actionLabel: 'Review income',
+                    actionRoute: '/income',
+                    on: $today,
+                );
+            }
+        }
+
+        // ── Overdue invoices ──────────────────────────────────────────────
+        $overdue = $user->incomeTransactions()
+            ->outstanding()
+            ->whereNotNull('due_date')
+            ->whereDate('due_date', '<', $today->toDateString())
+            ->get();
+
+        if ($overdue->isNotEmpty()) {
+            $total = Money::sum($overdue->pluck('amount'));
+
+            $this->raise(
+                $user,
+                AlertType::InvoiceOverdue,
+                $overdue->count().' '.($overdue->count() === 1 ? 'payment is' : 'payments are').' overdue',
+                'LKR '.number_format((float) $total, 2).' is past its due date. Money you are owed is not money you have.',
+                AlertSeverity::Warning,
+                reference: 'overdue',
+                data: ['count' => $overdue->count(), 'total' => $total],
+                actionLabel: 'See income',
+                actionRoute: '/income',
+                on: $today,
+            );
+        }
+
+        // ── A cycle running short of what the plan assumed ────────────────
+        $plan = $this->plans->activePlanFor($user, $today);
+
+        if ($plan === null) {
+            return;
+        }
+
+        $start = CarbonImmutable::instance($plan->cycle_start_date);
+        $end = CarbonImmutable::instance($plan->cycle_end_date);
+        $daysLeft = $this->cycles->remainingDays($today, $end);
+        $elapsed = max(1, $start->diffInDays($today) + 1);
+        $total = max(1, $start->diffInDays($end) + 1);
+
+        // Only worth saying once the cycle is more than half gone.
+        if ($daysLeft === 0 || $elapsed / $total < 0.5) {
+            return;
+        }
+
+        $received = $this->incomeReceivedIn($user, $start, $end);
+        $planned = Money::of($plan->expected_income);
+
+        if (! Money::isPositive($planned)) {
+            return;
+        }
+
+        $coverage = Money::percentage($received, $planned);
+
+        if ($coverage >= 70) {
+            return;
+        }
+
+        $this->raise(
+            $user,
+            AlertType::IncomeBehindPlan,
+            'Income is behind plan this cycle',
+            'You have received '.round($coverage).'% of the LKR '.number_format((float) $planned, 2)
+                .' this plan assumed, with '.$daysLeft.' '.($daysLeft === 1 ? 'day' : 'days').' to go.',
+            AlertSeverity::Warning,
+            reference: 'plan:'.$plan->id,
+            data: ['coverage' => $coverage, 'received' => $received],
+            actionLabel: 'See income',
+            actionRoute: '/income',
+            on: $today,
+        );
+    }
+
+    private function incomeReceivedIn(User $user, CarbonImmutable $start, CarbonImmutable $end): string
+    {
+        return Money::of(
+            $user->incomeTransactions()
+                ->received()
+                ->whereBetween('received_date', [$start->toDateString(), $end->toDateString()])
+                ->sum('amount')
+        );
+    }
+
     private function checkCreditCardIncrease(User $user, Expense $expense): void
     {
         $debt = Debt::find($expense->debt_id);
@@ -429,7 +561,7 @@ class AlertService
         }
 
         return $profile->wantsNotification(match ($type) {
-            AlertType::SalaryReceived, AlertType::SalaryTomorrow => 'salary_day',
+            AlertType::SalaryReceived, AlertType::SalaryTomorrow => 'cycle_start_day',
             AlertType::BillDueSoon => 'upcoming_bills',
             AlertType::DebtPaymentDue, AlertType::CreditCardIncreased => 'debt_payments',
             AlertType::BudgetWarning, AlertType::CategoryBudgetWarning => 'budget_warnings',
@@ -437,6 +569,8 @@ class AlertService
             AlertType::SavingsTargetReached => 'savings_goals',
             AlertType::WeeklyReview => 'weekly_review',
             AlertType::CycleSurplus => 'cycle_surplus',
+            AlertType::LowRunway, AlertType::InvoiceOverdue,
+            AlertType::IncomeBehindPlan => 'income_health',
         });
     }
 

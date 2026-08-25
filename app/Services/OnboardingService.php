@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Frequency;
+use App\Enums\IncomeMode;
 use App\Models\Category;
 use App\Models\User;
 use App\Support\Money;
@@ -18,6 +19,7 @@ class OnboardingService
     public function __construct(
         private readonly AccountSetupService $setup,
         private readonly CardPaymentMethodService $cards,
+        private readonly IncomeModeService $modes,
     ) {}
 
     /**
@@ -46,18 +48,17 @@ class OnboardingService
      */
     private function saveProfile(User $user, array $data): void
     {
+        $mode = IncomeMode::from($data['income_mode']);
+
         $user->financialProfile->forceFill([
-            'base_salary' => Money::of($data['base_salary']),
-            'salary_day' => (int) $data['salary_day'],
+            'cycle_start_day' => (int) $data['cycle_start_day'],
             'has_extra_income' => (bool) ($data['has_extra_income'] ?? false),
             'default_buffer' => Money::of($data['default_buffer'] ?? 0),
         ])->save();
 
-        // A salary income source so the figure has somewhere to belong.
-        $user->incomeSources()->firstOrCreate(
-            ['name' => 'Salary'],
-            ['type' => 'salary', 'expected_amount' => Money::of($data['base_salary']), 'active' => true],
-        );
+        // The mode decides the cycle anchor, the funding method, and which
+        // income sources the account needs.
+        $this->modes->apply($user->fresh(), $mode, $data);
     }
 
     /**

@@ -23,7 +23,8 @@ class DashboardService
         private readonly SavingsService $savings,
         private readonly DebtPayoffService $payoff,
         private readonly AlertService $alerts,
-        private readonly SalaryCycleService $cycles,
+        private readonly BudgetCycleService $cycles,
+        private readonly IncomeForecastService $income,
     ) {}
 
     /**
@@ -92,29 +93,41 @@ class DashboardService
      */
     private function salarySection(User $user, \App\Models\FinancialProfile $profile, ?\App\Models\MonthlyPlan $plan, CarbonImmutable $today): array
     {
-        $thisMonthSalary = $this->cycles->salaryDate($today->year, $today->month, $profile->salary_day);
-        $nextSalary = $thisMonthSalary->gte($today)
-            ? $thisMonthSalary
-            : $this->cycles->salaryDate(
-                $today->addMonthNoOverflow()->year,
-                $today->addMonthNoOverflow()->month,
-                $profile->salary_day
-            );
+        $thisMonthSalary = $this->cycles->cycleStartDate($today->year, $today->month, $profile->cycle_start_day);
+        $nextSalary = $this->cycles->nextPayDate($profile, $today);
 
-        $period = $this->cycles->planPeriodFor($today, $profile->salary_day);
+        $period = $this->cycles->periodFor($today, $profile);
         $currentPlan = $plan ?? $user->monthlyPlans()
             ->where('year', $period['year'])
             ->where('month', $period['month'])
             ->first();
 
+        $funding = $this->income->fundingFor($user, $period['year'], $period['month'], $profile);
+        $isSalaried = $profile->hasSalary();
+
         return [
-            'expected' => Money::of($profile->base_salary),
+            'income_mode' => $profile->income_mode->value,
+            'funding_method' => $profile->funding_method->value,
+            'funding_label' => $funding['method_label'],
+            'funding_explanation' => $funding['explanation'] ?? null,
+            // Irregular accounts have no pay day; the pot and its runway are
+            // what matters to them instead.
+            'has_pay_day' => $isSalaried,
+            'holding_pot' => $profile->funding_method->usesHoldingPot()
+                ? $this->income->runway($user)
+                : null,
+            'received_this_cycle' => $plan === null ? '0.00' : $this->income->summaryBetween(
+                $user,
+                CarbonImmutable::instance($plan->cycle_start_date),
+                CarbonImmutable::instance($plan->cycle_end_date),
+            ),
+            'expected' => Money::of($funding['amount']),
             'actual' => $currentPlan?->actual_income === null ? null : Money::of($currentPlan->actual_income),
             'extra' => $currentPlan === null ? '0.00' : Money::of($currentPlan->extra_income),
-            'salary_day' => $profile->salary_day,
-            'next_salary_date' => $nextSalary->toDateString(),
-            'days_until_salary' => $today->diffInDays($nextSalary),
-            'is_salary_day' => $today->isSameDay($thisMonthSalary),
+            'cycle_start_day' => $profile->cycle_start_day,
+            'next_salary_date' => $isSalaried ? $nextSalary->toDateString() : null,
+            'days_until_salary' => $isSalaried ? $today->diffInDays($nextSalary) : null,
+            'is_salary_day' => $isSalaried && $today->isSameDay($thisMonthSalary),
             // Prompt the salary-day flow while the cycle's plan is unfinished.
             'needs_planning' => $currentPlan === null || $currentPlan->isDraft(),
             'plan_period' => $period,

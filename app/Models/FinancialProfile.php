@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\CycleAnchor;
+use App\Enums\FundingMethod;
+use App\Enums\IncomeMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -9,8 +12,14 @@ class FinancialProfile extends Model
 {
     protected $fillable = [
         'user_id',
+        'income_mode',
+        'cycle_anchor',
+        'funding_method',
         'base_salary',
-        'salary_day',
+        'target_draw',
+        'forecast_months',
+        'forecast_factor',
+        'cycle_start_day',
         'has_extra_income',
         'default_buffer',
         'extra_debt_percentage',
@@ -24,9 +33,15 @@ class FinancialProfile extends Model
     protected function casts(): array
     {
         return [
+            'income_mode' => IncomeMode::class,
+            'cycle_anchor' => CycleAnchor::class,
+            'funding_method' => FundingMethod::class,
             'base_salary' => 'decimal:2',
+            'target_draw' => 'decimal:2',
             'default_buffer' => 'decimal:2',
-            'salary_day' => 'integer',
+            'forecast_months' => 'integer',
+            'forecast_factor' => 'integer',
+            'cycle_start_day' => 'integer',
             'has_extra_income' => 'boolean',
             'extra_debt_percentage' => 'integer',
             'extra_savings_percentage' => 'integer',
@@ -46,6 +61,7 @@ class FinancialProfile extends Model
         'savings_goals',
         'weekly_review',
         'cycle_surplus',
+        'income_health',
     ];
 
     public function user(): BelongsTo
@@ -61,5 +77,32 @@ class FinancialProfile extends Model
     public function hasCompletedOnboarding(): bool
     {
         return $this->onboarding_completed_at !== null;
+    }
+
+    /** Whether a fixed salary is part of this account's income. */
+    public function hasSalary(): bool
+    {
+        return $this->income_mode->hasSalary();
+    }
+
+    /** Whether income arrives irregularly and needs the ledger. */
+    public function hasIrregularIncome(): bool
+    {
+        return $this->income_mode->hasIrregularIncome();
+    }
+
+    /**
+     * Apply a mode's presets. Explicit overrides win, so a user who has tuned
+     * their anchor or funding method does not silently lose it.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    public function applyIncomeMode(IncomeMode $mode, array $overrides = []): void
+    {
+        $this->forceFill([
+            'income_mode' => $mode->value,
+            'cycle_anchor' => $overrides['cycle_anchor'] ?? $mode->defaultCycleAnchor()->value,
+            'funding_method' => $overrides['funding_method'] ?? $mode->defaultFundingMethod()->value,
+        ]);
     }
 }

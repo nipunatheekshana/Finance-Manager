@@ -33,9 +33,10 @@ use RuntimeException;
 class FinancialPlanService
 {
     public function __construct(
-        private readonly SalaryCycleService $cycles,
+        private readonly BudgetCycleService $cycles,
         private readonly RecurringTransactionService $recurring,
         private readonly CycleSurplusService $surplus,
+        private readonly IncomeForecastService $income,
     ) {}
 
     /**
@@ -56,14 +57,20 @@ class FinancialPlanService
             return $existing;
         }
 
-        [$start, $end] = $this->cycles->cycleFor($year, $month, $profile->salary_day);
+        [$start, $end] = $this->cycles->cycleFor($year, $month, $profile);
 
-        return DB::transaction(function () use ($user, $profile, $year, $month, $start, $end) {
+        // Salary, a self-paid draw, a forecast, or only what has arrived —
+        // whichever this account is set up for.
+        $funding = $this->income->fundingFor($user, $year, $month, $profile);
+
+        return DB::transaction(function () use ($user, $profile, $year, $month, $start, $end, $funding) {
             $plan = MonthlyPlan::create([
                 'user_id' => $user->id,
                 'year' => $year,
                 'month' => $month,
-                'expected_income' => $profile->base_salary,
+                'funding_method' => $funding['method'],
+                'drawn_amount' => $funding['drawn_amount'],
+                'expected_income' => $funding['amount'],
                 'actual_income' => null,
                 'extra_income' => '0.00',
                 // Whatever the previous cycle chose to hand forward.
@@ -538,6 +545,6 @@ class FinancialPlanService
     public function profileFor(User $user): FinancialProfile
     {
         return $user->financialProfile
-            ?? $user->financialProfile()->create(['base_salary' => 0, 'salary_day' => 25]);
+            ?? $user->financialProfile()->create(['base_salary' => 0, 'cycle_start_day' => 25]);
     }
 }

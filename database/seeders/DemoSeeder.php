@@ -9,7 +9,7 @@ use App\Services\CardPaymentMethodService;
 use App\Services\DebtPaymentService;
 use App\Services\FinancialPlanService;
 use App\Services\ExpenseService;
-use App\Services\SalaryCycleService;
+use App\Services\BudgetCycleService;
 use App\Services\SavingsService;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -30,7 +30,7 @@ class DemoSeeder extends Seeder
     {
         $setup = app(AccountSetupService::class);
         $plans = app(FinancialPlanService::class);
-        $cycles = app(SalaryCycleService::class);
+        $cycles = app(BudgetCycleService::class);
         $savings = app(SavingsService::class);
         $debtPayments = app(DebtPaymentService::class);
         $cards = app(CardPaymentMethodService::class);
@@ -49,7 +49,7 @@ class DemoSeeder extends Seeder
         // ── Step 1: salary ────────────────────────────────────────────────
         $user->financialProfile->forceFill([
             'base_salary' => '280000.00',
-            'salary_day' => 25,
+            'cycle_start_day' => 25,
             'has_extra_income' => true,
             'default_buffer' => '20000.00',
             'extra_debt_percentage' => 50,
@@ -294,7 +294,7 @@ class DemoSeeder extends Seeder
      */
     private function seedPreviousCycle(
         User $user,
-        SalaryCycleService $cycles,
+        BudgetCycleService $cycles,
         FinancialPlanService $plans,
         CarbonImmutable $today,
     ): void {

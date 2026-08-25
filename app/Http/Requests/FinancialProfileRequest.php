@@ -19,7 +19,7 @@ class FinancialProfileRequest extends FormRequest
     {
         return [
             'base_salary' => $this->moneyRules(false),
-            'salary_day' => ['sometimes', 'integer', 'min:1', 'max:31'],
+            'cycle_start_day' => ['sometimes', 'integer', 'min:1', 'max:31'],
             'has_extra_income' => ['sometimes', 'boolean'],
             'default_buffer' => $this->moneyRules(false),
             'extra_debt_percentage' => ['sometimes', 'integer', 'min:0', 'max:100'],

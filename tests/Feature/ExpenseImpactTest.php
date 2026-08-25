@@ -291,7 +291,7 @@ class ExpenseImpactTest extends TestCase
      */
     private function activePlan(): array
     {
-        $user = $this->makeUser(['base_salary' => '280000.00', 'salary_day' => 25]);
+        $user = $this->makeUser(['base_salary' => '280000.00', 'cycle_start_day' => 25]);
 
         $planner = app(FinancialPlanService::class);
         $plan = $planner->draftFor($user, 2026, 9);

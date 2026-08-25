@@ -2,12 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Bell, ChevronRight, CreditCard, LogOut, Moon, Palette, PiggyBank,
+  Banknote, Bell, ChevronRight, CreditCard, LogOut, Moon, Palette, PiggyBank,
   Repeat, Shapes, Shield, Sun, User, Wallet,
 } from 'lucide-vue-next'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import TextField from '@/components/common/TextField.vue'
+import MoneyText from '@/components/common/MoneyText.vue'
 import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -18,8 +19,6 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const router = useRouter()
 
-const baseSalary = ref('')
-const salaryDay = ref('')
 const defaultBuffer = ref('')
 const extraDebt = ref('')
 const extraSavings = ref('')
@@ -35,6 +34,8 @@ const THEME_OPTIONS = [
 ]
 
 const LINKS = [
+  { to: '/settings/income', label: 'Income setup', description: 'How you earn, and what funds your plan', icon: Banknote },
+  { to: '/income', label: 'Income records', description: 'What you have earned and what is owed', icon: Wallet },
   { to: '/settings/categories', label: 'Categories', description: 'Names, icons and monthly limits', icon: Shapes },
   { to: '/settings/payment-methods', label: 'Payment methods', description: 'Cash, cards and card links', icon: CreditCard },
   { to: '/settings/recurring', label: 'Recurring expenses', description: 'The bills pulled into each plan', icon: Repeat },
@@ -52,8 +53,6 @@ function hydrate(): void {
   const profile = auth.profile
   if (!profile) return
 
-  baseSalary.value = String(Number.parseFloat(profile.base_salary))
-  salaryDay.value = String(profile.salary_day)
   defaultBuffer.value = String(Number.parseFloat(profile.default_buffer))
   extraDebt.value = String(profile.extra_debt_percentage)
   extraSavings.value = String(profile.extra_savings_percentage)
@@ -66,8 +65,6 @@ async function save(): Promise<void> {
 
   try {
     await auth.updateProfile({
-      base_salary: Number.parseFloat(baseSalary.value || '0').toFixed(2),
-      salary_day: Number(salaryDay.value),
       default_buffer: Number.parseFloat(defaultBuffer.value || '0').toFixed(2),
       extra_debt_percentage: Number(extraDebt.value),
       extra_savings_percentage: Number(extraSavings.value),
@@ -117,22 +114,45 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- Salary -->
+      <!-- Income, summarised. Edited on its own screen because the fields
+           depend on how the account earns. -->
+      <RouterLink to="/settings/income" class="card block p-4 transition hover:shadow-[var(--shadow-card)]">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 class="text-base font-semibold text-ink">Income</h2>
+            <p class="mt-0.5 text-sm text-ink-muted">
+              {{ auth.profile?.income_mode_label ?? '—' }} ·
+              {{ auth.profile?.funding_method_label ?? '—' }}
+            </p>
+          </div>
+          <ChevronRight class="mt-1 h-4 w-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+        </div>
+
+        <dl v-if="auth.profile" class="mt-3 grid grid-cols-2 gap-4 border-t border-line pt-3">
+          <div v-if="auth.profile.has_salary">
+            <dt class="text-xs text-ink-subtle">Salary</dt>
+            <dd class="mt-0.5">
+              <MoneyText :amount="auth.profile.base_salary" size="sm" class="font-semibold" />
+            </dd>
+          </div>
+          <div v-if="Number.parseFloat(auth.profile.target_draw) > 0">
+            <dt class="text-xs text-ink-subtle">You pay yourself</dt>
+            <dd class="mt-0.5">
+              <MoneyText :amount="auth.profile.target_draw" size="sm" class="font-semibold" />
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs text-ink-subtle">Cycle starts</dt>
+            <dd class="tabular mt-0.5 text-sm font-semibold text-ink">
+              Day {{ auth.profile.cycle_start_day }}
+            </dd>
+          </div>
+        </dl>
+      </RouterLink>
+
+      <!-- Buffer -->
       <section class="card space-y-4 p-4">
-        <h2 class="text-base font-semibold text-ink">Salary</h2>
-
-        <MoneyInput v-model="baseSalary" label="Base monthly salary" :error="errors.base_salary" />
-
-        <TextField
-          v-model="salaryDay"
-          label="Salary day"
-          type="number"
-          inputmode="numeric"
-          min="1"
-          max="31"
-          hint="Your cycle runs from this day to the day before the next one."
-          :error="errors.salary_day"
-        />
+        <h2 class="text-base font-semibold text-ink">Buffer</h2>
 
         <MoneyInput
           v-model="defaultBuffer"

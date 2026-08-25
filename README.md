@@ -26,7 +26,8 @@ php artisan serve
 Open <http://localhost:8000> and sign in with the seeded account:
 
 ```
-demo@financemanager.test
+demo@financemanager.test        salaried
+freelance@financemanager.test   self-employed, paying themselves a draw
 password
 ```
 
@@ -62,12 +63,62 @@ Money::split('90000', 4);        // ["22500.00", ...] — always sums back
 Money::percentage('65000', '300000'); // 21.67
 ```
 
-### The salary cycle, not the calendar month
+### Not everyone earns a salary
 
-A plan labelled **September 2026** is the plan funded by September's salary. If
-the salary day is the 25th, that cycle runs 25 Sep → 24 Oct. With a salary day
-of the 1st it collapses to the calendar month. Salary days beyond a short
-month's length are clamped (31 → 28 in February).
+The app supports four ways of earning, chosen during onboarding and changeable
+in Settings whenever work changes — an employee starts a business, a business
+owner takes a job, plenty of people do both:
+
+| Mode | Cycle runs | Plan is funded by |
+|---|---|---|
+| Employed | pay day → day before next pay day | the salary |
+| Freelance / project | calendar month | a **draw** you pay yourself |
+| Business owner | calendar month | a forecast from recent months |
+| Both | pay day | salary **+** draw |
+
+The idea that makes lumpy income workable is the **draw**. You earn 320,000 in
+one month and 95,000 the next, but you pay yourself a steady 180,000. Income
+collects in a holding pot, the plan draws from it, and what is left is
+**runway** — "3.1 months at your current draw".
+
+Because the draw plays exactly the role a salary plays, everything downstream
+works unchanged: weekly budgets, daily limits, overspend handling, month-end
+surplus. Only [`IncomeForecastService`](app/Services/IncomeForecastService.php)
+knows the difference.
+
+Four funding methods are available, with a recommended default per mode:
+
+- **Fixed** — a known salary, the same every cycle.
+- **Draw** — a steady self-paid amount, backed by the holding pot.
+- **Forecast** — a rolling average of recent cycles, discounted (default 80%)
+  so one good month cannot set an unaffordable budget.
+- **Only what has arrived** — strict envelope budgeting; nothing can be
+  allocated before it is in the bank.
+
+Income is a real ledger: expected, invoiced and received are distinct states,
+and **only received income counts toward what you can spend**. Overdue invoices,
+low runway and a cycle running behind plan each raise their own alert.
+
+#### Switching modes safely
+
+Three rules, enforced by [`IncomeModeService`](app/Services/IncomeModeService.php):
+
+1. **Finished cycles are never rewritten.** Each plan records the funding method
+   it was built with, so old months keep reading correctly.
+2. **A cycle-anchor change waits for the next boundary.** Moving cycle dates
+   under a plan someone is actively spending against would invalidate their
+   weekly budgets, so the switch is deferred and the UI says exactly when it
+   lands.
+3. **Income sources are archived, never deleted**, so history keeps its labels.
+
+A preview shows all of this before anything is saved.
+
+### Cycles and weeks
+
+A plan labelled **September 2026** is the plan funded by September's pay. With a
+pay day of the 25th that cycle runs 25 Sep → 24 Oct; with a calendar-month
+anchor it is simply 1 Sep → 30 Sep. Pay days beyond a short month's length are
+clamped (31 → 28 in February).
 
 Weeks are real calendar windows, not "week 1–4" fictions: a 30-day cycle is
 split into four weeks of 8/8/7/7 days.
@@ -206,7 +257,9 @@ app/
   Models/                      21 Eloquent models
   Policies/                    Per-model ownership checks
   Services/
-    SalaryCycleService           Cycle boundaries and week windows
+    BudgetCycleService           Cycle boundaries and week windows
+    IncomeForecastService        What funds a cycle: salary, draw or forecast
+    IncomeModeService            Switching between ways of earning, safely
     RecurringTransactionService  Expands recurrences onto real dates
     FinancialPlanService         The monthly plan calculation
     BudgetCalculationService     Monthly / weekly / daily / category budgets
@@ -294,7 +347,7 @@ response available offline.
 ## Testing
 
 ```bash
-php artisan test           # 210 tests
+php artisan test           # 247 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
@@ -311,8 +364,8 @@ Coverage includes the money primitive, authentication and authorisation, the
 salary-planning formula and over-allocation rules, weekly/daily/category budget
 maths, the overspend adjustment flow, debt payoff and credit-card behaviour,
 savings transfers, recurrence counting, cash flow, month-end surplus handling,
-pre-save budget impact, and a full end-to-end acceptance run through the HTTP
-API in `FullWorkflowTest`.
+pre-save budget impact, income modes and safe mode switching, and a full
+end-to-end acceptance run through the HTTP API in `FullWorkflowTest`.
 
 ---
 

@@ -14,6 +14,7 @@ const loading = ref(true)
 const saving = ref(false)
 const settings = ref<Record<NotificationType, boolean>>({
   salary_day: true,
+  income_health: true,
   upcoming_bills: true,
   debt_payments: true,
   budget_warnings: true,
@@ -32,6 +33,7 @@ const TYPES: Array<{ key: NotificationType; label: string; description: string }
   { key: 'savings_goals', label: 'Savings goals', description: 'When you reach a savings target.' },
   { key: 'weekly_review', label: 'Weekly review', description: 'A prompt to review the week just finished.' },
   { key: 'cycle_surplus', label: 'Leftover money', description: 'When a finished cycle leaves money unspent.' },
+  { key: 'income_health', label: 'Income and runway', description: 'Low runway, overdue invoices and thin months.' },
 ]
 
 async function save(): Promise<void> {

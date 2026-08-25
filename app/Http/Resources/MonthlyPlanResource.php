@@ -16,6 +16,8 @@ class MonthlyPlanResource extends JsonResource
             'month' => $this->month,
             'label' => $this->label(),
             'status' => $this->status->value,
+            'funding_method' => $this->funding_method->value,
+            'drawn_amount' => Money::of($this->drawn_amount),
             'expected_income' => Money::of($this->expected_income),
             'actual_income' => $this->actual_income === null ? null : Money::of($this->actual_income),
             'extra_income' => Money::of($this->extra_income),

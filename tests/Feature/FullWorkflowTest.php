@@ -38,8 +38,9 @@ class FullWorkflowTest extends TestCase
 
         // ── Onboarding: salary, bills, debts, savings ─────────────────────
         $this->actingAs($user)->postJson('/api/onboarding', [
+            'income_mode' => 'salaried',
             'base_salary' => '280000.00',
-            'salary_day' => 25,
+            'cycle_start_day' => 25,
             'has_extra_income' => true,
             'default_buffer' => '20000.00',
             'recurring' => [

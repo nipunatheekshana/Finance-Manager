@@ -119,8 +119,9 @@ class MultipleCreditCardTest extends TestCase
         $user = $this->makeUser();
 
         $this->actingAs($user)->postJson('/api/onboarding', [
+            'income_mode' => 'salaried',
             'base_salary' => '280000.00',
-            'salary_day' => 25,
+            'cycle_start_day' => 25,
             'debts' => [
                 ['name' => 'HSBC Visa', 'type' => 'credit_card', 'current_balance' => '200000.00', 'planned_payment' => '50000.00'],
                 ['name' => 'Amex Gold', 'type' => 'credit_card', 'current_balance' => '80000.00', 'planned_payment' => '20000.00'],
@@ -146,8 +147,9 @@ class MultipleCreditCardTest extends TestCase
         $user = $this->makeUser();
 
         $this->actingAs($user)->postJson('/api/onboarding', [
+            'income_mode' => 'salaried',
             'base_salary' => '280000.00',
-            'salary_day' => 25,
+            'cycle_start_day' => 25,
             'debts' => [
                 ['name' => 'HSBC Visa', 'type' => 'credit_card', 'current_balance' => '100000.00'],
                 ['name' => 'Amex Gold', 'type' => 'credit_card', 'current_balance' => '50000.00'],

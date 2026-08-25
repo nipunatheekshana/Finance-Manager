@@ -66,6 +66,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Expenses' },
       },
       {
+        path: 'income',
+        name: 'income',
+        component: () => import('@/views/IncomeView.vue'),
+        meta: { title: 'Income' },
+      },
+      {
         path: 'debts',
         name: 'debts',
         component: () => import('@/views/DebtsView.vue'),
@@ -112,6 +118,12 @@ const routes: RouteRecordRaw[] = [
         name: 'settings',
         component: () => import('@/views/SettingsView.vue'),
         meta: { title: 'Settings' },
+      },
+      {
+        path: 'settings/income',
+        name: 'settings-income',
+        component: () => import('@/views/settings/IncomeSetupView.vue'),
+        meta: { title: 'Income setup' },
       },
       {
         path: 'settings/categories',

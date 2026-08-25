@@ -418,7 +418,7 @@ class CycleSurplusTest extends TestCase
     {
         $this->freezeOn('2026-09-25');
 
-        $user = $this->makeUser(['base_salary' => '280000.00', 'salary_day' => 25]);
+        $user = $this->makeUser(['base_salary' => '280000.00', 'cycle_start_day' => 25]);
 
         Debt::create([
             'user_id' => $user->id,

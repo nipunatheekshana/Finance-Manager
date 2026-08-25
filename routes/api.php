@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\DebtPaymentController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\FinancialHealthController;
 use App\Http\Controllers\Api\IncomeController;
+use App\Http\Controllers\Api\IncomeModeController;
 use App\Http\Controllers\Api\MonthlyPlanController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -63,9 +64,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('profile/account', [ProfileController::class, 'updateAccount']);
     Route::put('profile/password', [ProfileController::class, 'updatePassword']);
 
-    // Income
+    // How the user earns, and switching between modes.
+    Route::get('income-modes', [IncomeModeController::class, 'index']);
+    Route::post('income-modes/preview', [IncomeModeController::class, 'preview']);
+    Route::put('income-modes', [IncomeModeController::class, 'update']);
+
+    // Income ledger
+    Route::get('income/forecast', [IncomeController::class, 'forecast']);
+    Route::get('income/sources', [IncomeController::class, 'sources']);
+    Route::post('income/sources', [IncomeController::class, 'storeSource']);
+    Route::put('income/sources/{incomeSource}', [IncomeController::class, 'updateSource']);
+    Route::delete('income/sources/{incomeSource}', [IncomeController::class, 'destroySource']);
+
     Route::get('income', [IncomeController::class, 'index']);
     Route::post('income', [IncomeController::class, 'store']);
+    Route::put('income/{income}', [IncomeController::class, 'update']);
+    Route::post('income/{income}/received', [IncomeController::class, 'markReceived']);
     Route::delete('income/{income}', [IncomeController::class, 'destroy']);
 
     // Expenses

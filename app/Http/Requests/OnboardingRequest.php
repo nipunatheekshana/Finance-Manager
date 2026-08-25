@@ -3,10 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Enums\AllocationType;
+use App\Enums\CycleAnchor;
 use App\Enums\DebtType;
 use App\Enums\Frequency;
+use App\Enums\FundingMethod;
+use App\Enums\IncomeMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * The whole onboarding wizard submitted in one go, so a half-finished setup
@@ -24,9 +28,17 @@ class OnboardingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Step 1 — salary
-            'base_salary' => $this->positiveMoneyRules(),
-            'salary_day' => ['required', 'integer', 'min:1', 'max:31'],
+            // Step 1 — how the user earns
+            'income_mode' => ['required', Rule::in(IncomeMode::values())],
+            'cycle_anchor' => ['sometimes', 'nullable', Rule::in(CycleAnchor::values())],
+            'funding_method' => ['sometimes', 'nullable', Rule::in(FundingMethod::values())],
+
+            // Step 2 — the figures that mode needs
+            'base_salary' => $this->moneyRules(false),
+            'target_draw' => $this->moneyRules(false),
+            'cycle_start_day' => ['required', 'integer', 'min:1', 'max:31'],
+            'forecast_months' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:12'],
+            'forecast_factor' => ['sometimes', 'nullable', 'integer', 'min:10', 'max:100'],
             'has_extra_income' => ['sometimes', 'boolean'],
             'default_buffer' => $this->moneyRules(false),
 
@@ -65,6 +77,35 @@ class OnboardingRequest extends FormRequest
             'savings_goals.*.allocation_value' => ['nullable', 'numeric', 'min:0'],
             'savings_goals.*.target_date' => ['nullable', 'date', 'after:today'],
             'savings_goals.*.priority' => ['sometimes', 'integer', 'min:1', 'max:5'],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator) {
+                $mode = IncomeMode::tryFrom((string) $this->input('income_mode'));
+
+                if ($mode === null) {
+                    return;
+                }
+
+                $funding = $this->filled('funding_method')
+                    ? FundingMethod::from($this->input('funding_method'))
+                    : $mode->defaultFundingMethod();
+
+                // Only ask for the figures the chosen mode actually needs.
+                if ($mode->hasSalary() && ! $this->filled('base_salary')) {
+                    $validator->errors()->add('base_salary', 'Enter the salary you receive.');
+                }
+
+                if ($funding->usesHoldingPot() && ! $this->filled('target_draw')) {
+                    $validator->errors()->add(
+                        'target_draw',
+                        'Enter the amount you want to pay yourself each cycle.',
+                    );
+                }
+            },
         ];
     }
 }

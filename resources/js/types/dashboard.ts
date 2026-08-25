@@ -15,6 +15,10 @@ export type AlertType =
   | 'savings_target_reached'
   | 'credit_card_increased'
   | 'weekly_review'
+  | 'cycle_surplus'
+  | 'low_runway'
+  | 'invoice_overdue'
+  | 'income_behind_plan'
 
 export interface FinancialAlert {
   id: number
@@ -30,12 +34,20 @@ export interface FinancialAlert {
 }
 
 export interface SalarySection {
+  income_mode: import('./user').IncomeMode
+  funding_method: import('./user').FundingMethod
+  funding_label: string
+  funding_explanation: string | null
+  /** Irregular accounts have no pay day; they have a pot and runway instead. */
+  has_pay_day: boolean
+  holding_pot: import('./income').HoldingPot | null
+  received_this_cycle: import('./income').IncomeSummary | string
   expected: Money
   actual: Money | null
   extra: Money
-  salary_day: number
-  next_salary_date: string
-  days_until_salary: number
+  cycle_start_day: number
+  next_salary_date: string | null
+  days_until_salary: number | null
   is_salary_day: boolean
   needs_planning: boolean
   plan_period: { year: number; month: number }

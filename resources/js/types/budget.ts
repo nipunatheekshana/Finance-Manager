@@ -59,6 +59,8 @@ export interface MonthlyPlan {
   month: number
   label: string
   status: PlanStatus
+  funding_method: import('./user').FundingMethod
+  drawn_amount: Money
   expected_income: Money
   actual_income: Money | null
   extra_income: Money

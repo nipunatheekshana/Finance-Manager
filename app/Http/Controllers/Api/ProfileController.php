@@ -38,7 +38,7 @@ class ProfileController extends Controller
             $request->user()->id,
             'profile.updated',
             $profile,
-            ['base_salary', 'salary_day', 'default_buffer'],
+            ['base_salary', 'cycle_start_day', 'default_buffer'],
         );
 
         $profile->save();

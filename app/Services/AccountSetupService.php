@@ -29,7 +29,7 @@ class AccountSetupService
             ['user_id' => $user->id],
             [
                 'base_salary' => 0,
-                'salary_day' => 25,
+                'cycle_start_day' => 25,
                 'default_buffer' => 0,
                 'extra_debt_percentage' => 50,
                 'extra_savings_percentage' => 30,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\FundingMethod;
 use App\Enums\PlanStatus;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,6 +16,8 @@ class MonthlyPlan extends Model
         'user_id',
         'month',
         'year',
+        'funding_method',
+        'drawn_amount',
         'expected_income',
         'actual_income',
         'extra_income',
@@ -42,6 +45,8 @@ class MonthlyPlan extends Model
         return [
             'month' => 'integer',
             'year' => 'integer',
+            'funding_method' => FundingMethod::class,
+            'drawn_amount' => 'decimal:2',
             'expected_income' => 'decimal:2',
             'actual_income' => 'decimal:2',
             'extra_income' => 'decimal:2',

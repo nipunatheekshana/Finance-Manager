@@ -307,7 +307,7 @@ class MultiUserIsolationTest extends TestCase
         string $mainCard = '120000.00',
         string $secondCard = '40000.00',
     ): User {
-        $user = $this->makeUser(['base_salary' => $salary, 'salary_day' => 25]);
+        $user = $this->makeUser(['base_salary' => $salary, 'cycle_start_day' => 25]);
         $user->forceFill(['name' => $name])->save();
 
         $user->recurringTransactions()->create([

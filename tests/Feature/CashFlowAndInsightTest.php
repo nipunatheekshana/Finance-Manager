@@ -277,7 +277,7 @@ class CashFlowAndInsightTest extends TestCase
      */
     private function activePlan(): array
     {
-        $user = $this->makeUser(['base_salary' => '280000.00', 'salary_day' => 25]);
+        $user = $this->makeUser(['base_salary' => '280000.00', 'cycle_start_day' => 25]);
 
         foreach ([
             ['name' => 'Gym', 'amount' => '3000.00', 'due_day' => 26],

@@ -56,7 +56,7 @@ class MonthlyPlanController extends Controller
         $plan = $this->plans->activePlanFor($user);
 
         if ($plan === null) {
-            $period = app(\App\Services\SalaryCycleService::class)
+            $period = app(\App\Services\BudgetCycleService::class)
                 ->currentPeriodFor($profile);
 
             $plan = $this->plans->draftFor($user, $period['year'], $period['month']);
