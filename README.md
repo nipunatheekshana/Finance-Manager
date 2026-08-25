@@ -102,6 +102,32 @@ the buffer, reduce a category, or ignore — with the exact effect of each, and
 changes nothing until one is chosen. Every applied choice is written to
 `budget_adjustments`.
 
+### Going over a weekly limit is never silent
+
+Recording an expense is never blocked: the money has already been spent, and a
+tool that refuses to write it down stops being trusted. But crossing a weekly
+limit is not allowed to slip past unnoticed either.
+
+As the amount is typed, the form asks the server what the expense *would* do
+([`ExpenseImpactService`](app/Services/ExpenseImpactService.php), `POST
+/api/expenses/preview` — it writes nothing) and shows the answer live:
+
+- under budget: "LKR 6,475 would be left for the rest of week 1 — that is
+  LKR 925 a day for the 7 days remaining"
+- near the limit: the same figures, in amber
+- over the limit: **"This puts you LKR 2,500.00 over your week 1 budget"**, plus
+  a checkbox reading *"I know this goes over — save it and let me choose what to
+  do."* The save button is disabled until it is ticked, then reads "Save anyway".
+
+The moment the expense saves, the write returns the week's new state and the
+overspend choices open immediately — adjust next week, use the buffer, reduce a
+category, or accept it — rather than waiting to be discovered on the Budget
+screen later. It is the same sheet and the same audit trail; only the timing
+changes.
+
+A category limit that would be crossed is called out in the same panel, but it
+does not gate the save: category budgets warn, they never block (§27).
+
 ### A credit card being paid down is still a card being used
 
 Spending on a payment method linked to a debt raises that debt's balance
@@ -187,6 +213,7 @@ app/
     BudgetAdjustmentService      The overspend options and their effects
     ExpenseService               Expense writes, card linkage, offline sync
     CardPaymentMethodService     One payment method per credit card
+    ExpenseImpactService         What an expense would do, before it is saved
     CycleSurplusService          What happens to a finished cycle's leftover
     DebtPaymentService           Payments, card charges, reversals
     DebtPayoffService            Payoff estimates with or without interest
@@ -267,7 +294,7 @@ response available offline.
 ## Testing
 
 ```bash
-php artisan test           # 196 tests
+php artisan test           # 210 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
@@ -284,8 +311,8 @@ Coverage includes the money primitive, authentication and authorisation, the
 salary-planning formula and over-allocation rules, weekly/daily/category budget
 maths, the overspend adjustment flow, debt payoff and credit-card behaviour,
 savings transfers, recurrence counting, cash flow, month-end surplus handling,
-and a full end-to-end acceptance run through the HTTP API in
-`FullWorkflowTest`.
+pre-save budget impact, and a full end-to-end acceptance run through the HTTP
+API in `FullWorkflowTest`.
 
 ---
 
