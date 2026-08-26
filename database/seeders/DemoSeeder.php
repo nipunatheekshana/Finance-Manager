@@ -51,7 +51,7 @@ class DemoSeeder extends Seeder
             'base_salary' => '280000.00',
             'cycle_start_day' => 25,
             'has_extra_income' => true,
-            'default_buffer' => '20000.00',
+            'default_buffer' => '12000.00',
             'extra_debt_percentage' => 50,
             'extra_savings_percentage' => 30,
             'extra_spending_percentage' => 20,
@@ -166,7 +166,7 @@ class DemoSeeder extends Seeder
                 'credit_limit' => '75000.00',
                 'interest_rate' => null,
                 'minimum_payment' => '2400.00',
-                'planned_payment' => '12000.00',
+                'planned_payment' => '4000.00',
                 'due_day' => 10,
                 'status' => 'active',
             ],
@@ -206,16 +206,29 @@ class DemoSeeder extends Seeder
         );
 
         // ── Category budgets ──────────────────────────────────────────────
-        $budgetsByCategory = [
-            'Food' => '30000.00',
-            'Transport' => '12000.00',
+        // Advisory caps: they warn, but nothing is reserved for them.
+        $capsByCategory = [
             'Smoking' => '30000.00',
             'Entertainment' => '8000.00',
             'Shopping' => '10000.00',
         ];
 
-        foreach ($budgetsByCategory as $name => $amount) {
+        foreach ($capsByCategory as $name => $amount) {
             $user->categories()->where('name', $name)->update(['monthly_budget' => $amount]);
+        }
+
+        // Allowances: spending that adds up through the cycle rather than
+        // arriving as one bill, so the money is set aside up front.
+        $allowancesByCategory = [
+            'Food' => '10000.00',
+            'Transport' => '5000.00',
+        ];
+
+        foreach ($allowancesByCategory as $name => $amount) {
+            $user->categories()->where('name', $name)->update([
+                'monthly_budget' => $amount,
+                'is_allowance' => true,
+            ]);
         }
 
         // ── A finished previous cycle, left unsettled ─────────────────────
@@ -279,7 +292,16 @@ class DemoSeeder extends Seeder
         }
 
         // ── A few weeks of day-to-day spending ────────────────────────────
-        if ($user->expenses()->count() === 0) {
+        // Scoped to this cycle: the previous cycle seeds its own expenses, and
+        // a global check would see those and skip the live one entirely.
+        $hasSpendingThisCycle = $user->expenses()
+            ->whereBetween('expense_date', [
+                $plan->cycle_start_date->toDateString(),
+                $plan->cycle_end_date->toDateString(),
+            ])
+            ->exists();
+
+        if (! $hasSpendingThisCycle) {
             $this->seedExpenses($user, $plan, $categories, $methods, $today);
         }
 
@@ -373,7 +395,15 @@ class DemoSeeder extends Seeder
         $dayOffset = 0;
         $patternIndex = 0;
 
-        while ($start->addDays($dayOffset)->lte($today)) {
+        // At least a couple of entries even when the cycle has only just
+        // started, so the dashboard is never all zeroes.
+        $minimumEntries = 2;
+
+        while ($start->addDays($dayOffset)->lte($today) || $patternIndex < $minimumEntries) {
+            if ($start->addDays($dayOffset)->gt($today)) {
+                $dayOffset = 0;
+            }
+
             $date = $start->addDays($dayOffset);
             $pattern = $patterns[$patternIndex % count($patterns)];
             $item = $pattern['items'][$dayOffset % count($pattern['items'])];

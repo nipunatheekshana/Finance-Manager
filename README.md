@@ -146,6 +146,45 @@ A weekly expense is expanded across the real dates inside the cycle. A 30-day
 cycle containing five Mondays costs five weeks of cigarettes, not four —
 see [`RecurringTransactionService`](app/Services/RecurringTransactionService.php).
 
+### Spending that adds up, not spending that arrives as a bill
+
+Fuel, groceries, eating out: not one payment on a due day, and not really
+discretionary either. These get an **allowance** — an amount set aside in the
+plan and drawn down through the cycle.
+
+The distinction that matters is against a plain category budget:
+
+| | Category budget | Allowance |
+|---|---|---|
+| Reserved out of income | no | **yes** |
+| Counts against your daily/weekly budget | yes | no — it has its own pot |
+| What it does | warns you | ring-fences the money |
+
+So a 50,000 fuel allowance leaves the plan's spending budget 50,000 lower, and
+fuel spending draws that pot down instead of competing with day-to-day money.
+Spending it is never counted twice: `BudgetCalculationService` covers spending
+in an allowance category **up to the amount reserved** and keeps it out of the
+weekly and daily pools, precisely because that money was already taken out of
+income when the plan was built.
+
+Past the reserved amount, the pot is empty and the money has to come from
+somewhere real — so anything beyond it spills into day-to-day spending and
+counts against the week it happened in
+(`discretionarySpentBetween()`). Overspending fuel therefore tightens this
+week's budget rather than quietly enlarging the plan.
+
+Money reserved and never spent is the mirror image: it is still in the bank, so
+it joins the month-end leftover below rather than disappearing.
+
+Percentage used is close to meaningless for something spent gradually — 60%
+gone is fine on day 20 and alarming on day 3 — so each allowance also reports
+what is left **per remaining day** and whether it is running ahead of an even
+pace. That is what the dashboard leads with.
+
+Turn a category budget into an allowance with one toggle in Settings →
+Categories; adjust the amounts for a single cycle in the planner's Allowances
+step without touching the standing default.
+
 ### Nothing moves without the user
 
 When a week is overspent the app presents the options — reduce next week, use
@@ -194,11 +233,16 @@ growing, so at month end the app asks what should happen to it:
 ```
 LAST CYCLE LEFT OVER
 
-  Unspent budget    LKR 17,400
-  Unused buffer     LKR 20,000
-  ─────────────────────────────
-  Total             LKR 37,400
+  Unspent budget      LKR 17,400
+  Unused allowances   LKR  8,200
+  Unused buffer       LKR 20,000
+  ───────────────────────────────
+  Total               LKR 45,600
 ```
+
+Three pots, all of it money still sitting in the account: day-to-day budget
+that went unspent, allowance money reserved for a category and never drawn, and
+buffer that was never needed.
 
 Five choices, each showing its exact effect before it is taken: pay down a
 debt, move it to a savings goal, add it to next month's spending, split it
@@ -211,7 +255,9 @@ payment, so it does not consume a scheduled installment); adding to savings
 records a real `SavingsTransaction`. Carrying forward sets the next plan's
 `opening_balance`, which counts toward its total income and therefore its
 spending budget. Buffer swept out is marked used, so the plan's own figures
-stay consistent if it is ever reopened.
+stay consistent if it is ever reopened — and it is drawn last, only once the
+unspent budget and unused allowances have been used up, so a partial allocation
+leaves the safety net intact for as long as possible.
 
 A cycle can only be settled once, and only after it has actually ended.
 

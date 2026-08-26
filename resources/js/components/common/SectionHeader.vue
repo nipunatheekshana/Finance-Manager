@@ -19,14 +19,14 @@ defineEmits<{ action: [] }>()
     <RouterLink
       v-if="actionLabel && actionTo"
       :to="actionTo"
-      class="shrink-0 text-sm font-semibold text-brand"
+      class="-mr-2 flex min-h-11 shrink-0 items-center px-2 text-sm font-semibold text-brand"
     >
       {{ actionLabel }}
     </RouterLink>
     <button
       v-else-if="actionLabel"
       type="button"
-      class="shrink-0 text-sm font-semibold text-brand"
+      class="-mr-2 flex min-h-11 shrink-0 items-center px-2 text-sm font-semibold text-brand"
       @click="$emit('action')"
     >
       {{ actionLabel }}

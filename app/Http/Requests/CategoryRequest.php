@@ -31,6 +31,8 @@ class CategoryRequest extends FormRequest
             'icon' => ['sometimes', 'string', 'max:50'],
             'color' => ['sometimes', 'string', 'max:20'],
             'monthly_budget' => $this->moneyRules(false),
+            // Reserve this budget in the plan instead of only warning on it.
+            'is_allowance' => ['sometimes', 'boolean'],
             'weekly_budget' => $this->moneyRules(false),
             'warning_percentage' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'active' => ['sometimes', 'boolean'],

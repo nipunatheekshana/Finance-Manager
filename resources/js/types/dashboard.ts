@@ -16,6 +16,7 @@ export type AlertType =
   | 'credit_card_increased'
   | 'weekly_review'
   | 'cycle_surplus'
+  | 'allowance_running_out'
   | 'low_runway'
   | 'invoice_overdue'
   | 'income_behind_plan'
@@ -151,6 +152,7 @@ export interface Dashboard {
   month_budget: MonthlySummary | null
   weeks?: WeeklySummary[]
   categories?: CategorySummary[]
+  allowances?: import('./budget').AllowanceSummary[]
   debts: DashboardDebts
   savings: DashboardSavings
   recent_expenses: DashboardExpense[]

@@ -173,7 +173,17 @@ const CHOICES = [
             <dt class="text-sm text-ink-muted">Unspent budget</dt>
             <dd><MoneyText :amount="options.unspent_budget" size="sm" class="font-semibold" /></dd>
           </div>
-          <div class="flex items-baseline justify-between gap-3">
+          <div
+            v-if="amountToNumber(options.unused_allowances) > 0"
+            class="flex items-baseline justify-between gap-3"
+          >
+            <dt class="text-sm text-ink-muted">Unused allowances</dt>
+            <dd><MoneyText :amount="options.unused_allowances" size="sm" class="font-semibold" /></dd>
+          </div>
+          <div
+            v-if="amountToNumber(options.unused_buffer) > 0"
+            class="flex items-baseline justify-between gap-3"
+          >
             <dt class="text-sm text-ink-muted">Unused buffer</dt>
             <dd><MoneyText :amount="options.unused_buffer" size="sm" class="font-semibold" /></dd>
           </div>

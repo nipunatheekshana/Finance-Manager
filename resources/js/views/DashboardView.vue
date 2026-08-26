@@ -9,6 +9,7 @@ import SavingsWidget from '@/components/dashboard/SavingsWidget.vue'
 import SalaryDayBanner from '@/components/dashboard/SalaryDayBanner.vue'
 import CategoryBudgetList from '@/components/dashboard/CategoryBudgetList.vue'
 import RecentExpenses from '@/components/dashboard/RecentExpenses.vue'
+import AllowanceList from '@/components/budgets/AllowanceList.vue'
 import AlertCard from '@/components/common/AlertCard.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import BudgetProgress from '@/components/common/BudgetProgress.vue'
@@ -193,6 +194,19 @@ onMounted(() => {
         <CreditCardWidget :debts="data.debts" />
         <SavingsWidget :savings="data.savings" />
       </div>
+
+      <!-- Money set aside for gradual spending, and how it is holding up. -->
+      <section v-if="data.allowances?.length">
+        <SectionHeader
+          title="Allowances"
+          subtitle="Set aside for spending that adds up through the cycle"
+          action-label="Adjust"
+          action-to="/plan"
+        />
+        <div class="card p-4">
+          <AllowanceList :allowances="data.allowances" />
+        </div>
+      </section>
 
       <section v-if="attentionCategories.length">
         <SectionHeader

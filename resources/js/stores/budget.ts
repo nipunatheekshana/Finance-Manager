@@ -5,6 +5,7 @@ import type {
   AdjustmentOptions,
   AdjustmentType,
   AllocationSummary,
+  AllowanceSummary,
   CycleSurplus,
   CycleSurplusOptions,
   SurplusAllocation,
@@ -29,6 +30,7 @@ export const useBudgetStore = defineStore('budget', () => {
   const weekSummaries = ref<WeeklySummary[]>([])
   const history = ref<MonthlyPlan[]>([])
   const pending = ref<CycleSurplus | null>(null)
+  const allowances = ref<AllowanceSummary[]>([])
 
   const loading = ref(false)
   const saving = ref(false)
@@ -139,6 +141,38 @@ export const useBudgetStore = defineStore('budget', () => {
     try {
       await api.post(`/monthly-plans/${plan.value.id}/fixed-expenses`, payload)
       await load(plan.value.id)
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /** Money set aside for gradual spending this cycle. */
+  async function loadAllowances(): Promise<AllowanceSummary[]> {
+    if (!plan.value) return []
+    const response = await api.get<{ data: AllowanceSummary[]; summary: AllocationSummary }>(
+      `/monthly-plans/${plan.value.id}/allowances`,
+    )
+    allowances.value = response.data
+    summary.value = response.summary
+    return response.data
+  }
+
+  /** Zero removes an allowance and returns the money to day-to-day spending. */
+  async function saveAllowances(
+    rows: Array<{ category_id: number; amount: string }>,
+  ): Promise<void> {
+    if (!plan.value) return
+    saving.value = true
+    try {
+      const response = await api.put<{
+        data: AllowanceSummary[]
+        summary: AllocationSummary
+        plan: MonthlyPlan
+      }>(`/monthly-plans/${plan.value.id}/allowances`, { allowances: rows })
+
+      allowances.value = response.data
+      summary.value = response.summary
+      plan.value = response.plan
     } finally {
       saving.value = false
     }
@@ -299,6 +333,9 @@ export const useBudgetStore = defineStore('budget', () => {
     complete,
     reopen,
     pending,
+    allowances,
+    loadAllowances,
+    saveAllowances,
     surplusOptions,
     resolveSurplus,
     pendingSurplus,

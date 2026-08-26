@@ -25,28 +25,134 @@ class BudgetCalculationService
     public function __construct(private readonly BudgetCycleService $cycles) {}
 
     /**
-     * Discretionary spend inside a date window.
+     * Day-to-day spend inside a date window.
+     *
+     * Categories with an allowance are excluded: that money was already
+     * reserved out of income when the plan was built, so counting it against
+     * the weekly pool as well would charge the user twice for it.
+     *
+     * @param  list<int>  $excludeCategoryIds
      */
-    public function spentBetween(int $userId, CarbonInterface $start, CarbonInterface $end): string
-    {
+    public function spentBetween(
+        int $userId,
+        CarbonInterface $start,
+        CarbonInterface $end,
+        array $excludeCategoryIds = [],
+    ): string {
         return Money::of(
             Expense::query()
                 ->where('user_id', $userId)
                 ->discretionary()
+                ->when($excludeCategoryIds !== [], fn ($q) => $q->whereNotIn('category_id', $excludeCategoryIds))
                 ->between($start->toDateString(), $end->toDateString())
                 ->sum('amount')
         );
     }
 
-    public function spentOn(int $userId, CarbonInterface $date): string
+    /**
+     * @param  list<int>  $excludeCategoryIds
+     */
+    public function spentOn(int $userId, CarbonInterface $date, array $excludeCategoryIds = []): string
     {
         return Money::of(
             Expense::query()
                 ->where('user_id', $userId)
                 ->discretionary()
+                ->when($excludeCategoryIds !== [], fn ($q) => $q->whereNotIn('category_id', $excludeCategoryIds))
                 ->onDate($date->toDateString())
                 ->sum('amount')
         );
+    }
+
+    /**
+     * What this plan set aside per category.
+     *
+     * @return array<int, string>
+     */
+    public function allowanceAmounts(MonthlyPlan $plan): array
+    {
+        $plan->loadMissing('budgetCategories');
+
+        return $plan->budgetCategories
+            ->filter(fn ($row) => (bool) $row->is_allowance)
+            ->mapWithKeys(fn ($row) => [(int) $row->category_id => Money::of($row->budget_amount)])
+            ->all();
+    }
+
+    /**
+     * Day-to-day spend in a window, with allowance spending netted off.
+     *
+     * An allowance covers spending in its category **up to the amount set
+     * aside** — that money already came out of income when the plan was built.
+     * Anything past it is not covered by anything, so it spills into the
+     * day-to-day budget like ordinary spending would.
+     *
+     * The "already used earlier in the cycle" part matters: if week 1 used the
+     * whole fuel allowance, week 2 has none left and all of week 2's fuel
+     * counts.
+     */
+    public function discretionarySpentBetween(
+        MonthlyPlan $plan,
+        CarbonInterface $start,
+        CarbonInterface $end,
+    ): string {
+        $total = $this->spentBetween($plan->user_id, $start, $end);
+        $allowances = $this->allowanceAmounts($plan);
+
+        if ($allowances === []) {
+            return $total;
+        }
+
+        $categoryIds = array_keys($allowances);
+        $cycleStart = CarbonImmutable::instance($plan->cycle_start_date)->startOfDay();
+        $windowStart = CarbonImmutable::instance($start)->startOfDay();
+
+        $inWindow = $this->categorySpend($plan->user_id, $categoryIds, $start, $end);
+
+        $before = $windowStart->lte($cycleStart)
+            ? []
+            : $this->categorySpend($plan->user_id, $categoryIds, $cycleStart, $windowStart->subDay());
+
+        $covered = '0.00';
+
+        foreach ($allowances as $categoryId => $amount) {
+            $spentInWindow = Money::of($inWindow[$categoryId] ?? 0);
+            $stillAvailable = Money::floorAtZero(Money::sub($amount, Money::of($before[$categoryId] ?? 0)));
+
+            $covered = Money::add($covered, Money::min($spentInWindow, $stillAvailable));
+        }
+
+        return Money::floorAtZero(Money::sub($total, $covered));
+    }
+
+    /**
+     * Day-to-day spend on one day, with allowance spending netted off.
+     */
+    public function discretionarySpentOn(MonthlyPlan $plan, CarbonInterface $date): string
+    {
+        return $this->discretionarySpentBetween($plan, $date, $date);
+    }
+
+    /**
+     * @param  list<int>  $categoryIds
+     * @return array<int, string>
+     */
+    private function categorySpend(int $userId, array $categoryIds, CarbonInterface $start, CarbonInterface $end): array
+    {
+        if ($categoryIds === []) {
+            return [];
+        }
+
+        return Expense::query()
+            ->where('user_id', $userId)
+            ->discretionary()
+            ->whereIn('category_id', $categoryIds)
+            ->between($start->toDateString(), $end->toDateString())
+            ->selectRaw('category_id, SUM(amount) as total')
+            ->groupBy('category_id')
+            ->pluck('total', 'category_id')
+            ->mapWithKeys(fn ($total, $id) => [(int) $id => (string) $total])
+            ->all();
     }
 
     /**
@@ -59,7 +165,7 @@ class BudgetCalculationService
         $today = CarbonImmutable::instance($today ?? CarbonImmutable::today())->startOfDay();
 
         $budget = Money::of($plan->spending_budget);
-        $spent = $this->spentBetween($plan->user_id, $plan->cycle_start_date, $plan->cycle_end_date);
+        $spent = $this->discretionarySpentBetween($plan, $plan->cycle_start_date, $plan->cycle_end_date);
         $remaining = Money::sub($budget, $spent);
 
         $daysRemaining = $this->cycles->remainingDays($today, $plan->cycle_end_date);
@@ -94,7 +200,7 @@ class BudgetCalculationService
         $week->loadMissing('monthlyPlan');
 
         $budget = $week->effectiveBudget();
-        $spent = $this->spentBetween($week->monthlyPlan->user_id, $week->start_date, $week->end_date);
+        $spent = $this->discretionarySpentBetween($week->monthlyPlan, $week->start_date, $week->end_date);
         $remaining = Money::sub($budget, $spent);
 
         $start = CarbonImmutable::instance($week->start_date)->startOfDay();
@@ -149,7 +255,7 @@ class BudgetCalculationService
     {
         $today = CarbonImmutable::instance($today ?? CarbonImmutable::today())->startOfDay();
 
-        $spentToday = $this->spentOn($plan->user_id, $today);
+        $spentToday = $this->discretionarySpentOn($plan, $today);
         $week = $this->currentWeek($plan, $today);
 
         $monthly = $this->monthlySummary($plan, $today);
@@ -257,6 +363,80 @@ class BudgetCalculationService
     }
 
     /**
+     * Each allowance: what was set aside, what has gone, and whether it is
+     * being spent faster than the cycle is passing.
+     *
+     * Pace is the point of this view. An allowance is spent gradually, so
+     * "60% gone" means nothing on its own — it is fine on day 20 of 30 and a
+     * problem on day 5.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function allowanceSummaries(MonthlyPlan $plan, ?CarbonInterface $today = null): array
+    {
+        $today = CarbonImmutable::instance($today ?? CarbonImmutable::today())->startOfDay();
+        $plan->loadMissing('budgetCategories.category');
+
+        $start = CarbonImmutable::instance($plan->cycle_start_date)->startOfDay();
+        $end = CarbonImmutable::instance($plan->cycle_end_date)->startOfDay();
+
+        $totalDays = max(1, $start->diffInDays($end) + 1);
+        $elapsedDays = min($totalDays, max(1, $start->diffInDays($today) + 1));
+        $daysRemaining = $this->cycles->remainingDays($today, $end);
+
+
+        $spendByCategory = Expense::query()
+            ->where('user_id', $plan->user_id)
+            ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
+            ->selectRaw('category_id, SUM(amount) as total')
+            ->groupBy('category_id')
+            ->pluck('total', 'category_id');
+
+        return $plan->budgetCategories
+            ->filter(fn ($row) => (bool) $row->is_allowance)
+            ->map(function ($row) use ($spendByCategory, $elapsedDays, $totalDays, $daysRemaining) {
+                $allocated = Money::of($row->budget_amount);
+                $spent = Money::of($spendByCategory[$row->category_id] ?? 0);
+                $remaining = Money::sub($allocated, $spent);
+
+                // What an even spend across the cycle would have used by now.
+                // Multiply before dividing: rounding the elapsed fraction first
+                // put 30,000 over two days of thirty at 2,000.01 instead of
+                // 2,000.00.
+                $expectedByNow = Money::div(
+                    Money::mul($allocated, (string) $elapsedDays),
+                    (string) $totalDays,
+                );
+                $warnAt = $row->category?->warning_percentage ?? 80;
+
+                return [
+                    'category_id' => (int) $row->category_id,
+                    'name' => $row->category?->name ?? 'Category',
+                    'icon' => $row->category?->icon ?? 'circle',
+                    'color' => $row->category?->color ?? 'slate',
+                    'allocated' => $allocated,
+                    'spent' => $spent,
+                    'remaining' => $remaining,
+                    'percentage_used' => Money::percentage($spent, $allocated),
+                    'status' => $this->statusFor($spent, $allocated, $warnAt)->value,
+                    'over_by' => Money::floorAtZero(Money::sub($spent, $allocated)),
+                    'days_remaining' => $daysRemaining,
+                    // What is left, spread over the days that are left.
+                    'daily_allowance' => $daysRemaining > 0
+                        ? Money::div(Money::floorAtZero($remaining), (string) $daysRemaining)
+                        : '0.00',
+                    'expected_by_now' => $expectedByNow,
+                    // Ahead of pace means it will run out before the cycle does.
+                    'ahead_of_pace' => Money::gt($spent, $expectedByNow),
+                    'pace_difference' => Money::sub($spent, $expectedByNow),
+                ];
+            })
+            ->sortByDesc('percentage_used')
+            ->values()
+            ->all();
+    }
+
+    /**
      * All weeks of a plan, summarised.
      *
      * @return list<array<string, mixed>>
@@ -281,7 +461,7 @@ class BudgetCalculationService
 
         foreach ($plan->weeklyBudgets as $week) {
             $week->forceFill([
-                'spent_amount' => $this->spentBetween($plan->user_id, $week->start_date, $week->end_date),
+                'spent_amount' => $this->discretionarySpentBetween($plan, $week->start_date, $week->end_date),
             ])->save();
         }
     }
@@ -298,7 +478,7 @@ class BudgetCalculationService
         $plan->loadMissing('weeklyBudgets');
 
         return $plan->weeklyBudgets->filter(function (WeeklyBudget $week) use ($plan, $today) {
-            $spent = $this->spentBetween($plan->user_id, $week->start_date, $week->end_date);
+            $spent = $this->discretionarySpentBetween($plan, $week->start_date, $week->end_date);
 
             return Money::gt($spent, $week->effectiveBudget())
                 && CarbonImmutable::instance($week->start_date)->lte($today);

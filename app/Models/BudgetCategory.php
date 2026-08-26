@@ -10,6 +10,7 @@ class BudgetCategory extends Model
     protected $fillable = [
         'monthly_plan_id',
         'category_id',
+        'is_allowance',
         'budget_amount',
         'spent_amount',
     ];
@@ -17,6 +18,7 @@ class BudgetCategory extends Model
     protected function casts(): array
     {
         return [
+            'is_allowance' => 'boolean',
             'budget_amount' => 'decimal:2',
             'spent_amount' => 'decimal:2',
         ];

@@ -15,6 +15,7 @@ class Category extends Model
         'icon',
         'color',
         'monthly_budget',
+        'is_allowance',
         'weekly_budget',
         'warning_percentage',
         'is_default',
@@ -26,6 +27,7 @@ class Category extends Model
     {
         return [
             'monthly_budget' => 'decimal:2',
+            'is_allowance' => 'boolean',
             'weekly_budget' => 'decimal:2',
             'warning_percentage' => 'integer',
             'is_default' => 'boolean',
@@ -73,5 +75,11 @@ class Category extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('active', true);
+    }
+
+    /** Categories whose budget is reserved in the plan, not just a warning. */
+    public function scopeAllowances(Builder $query): Builder
+    {
+        return $query->where('is_allowance', true)->where('monthly_budget', '>', 0);
     }
 }

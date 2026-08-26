@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CycleSurplusRequest;
 use App\Http\Requests\MonthlyPlanRequest;
 use App\Http\Requests\PlanAllocationsRequest;
+use App\Http\Requests\PlanAllowancesRequest;
 use App\Http\Requests\PlanFixedExpenseRequest;
 use App\Http\Requests\RecordIncomeRequest;
 use App\Http\Requests\WeeklyBudgetsRequest;
@@ -211,6 +212,60 @@ class MonthlyPlanController extends Controller
         }
 
         return $this->planResponse($this->plans->recalculate($monthlyPlan->fresh()));
+    }
+
+    /**
+     * The allowances reserved for this cycle, with what has been spent so far.
+     */
+    public function allowances(MonthlyPlan $monthlyPlan): JsonResponse
+    {
+        $this->authorize('view', $monthlyPlan);
+
+        return response()->json([
+            'data' => $this->budgets->allowanceSummaries($monthlyPlan),
+            'available_categories' => $monthlyPlan->user->categories()
+                ->active()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'icon', 'color', 'monthly_budget', 'is_allowance'])
+                ->all(),
+            'summary' => $this->plans->allocationSummary($monthlyPlan),
+        ]);
+    }
+
+    /**
+     * Set how much is reserved for each category this cycle. An amount of zero
+     * drops the allowance and hands the money back to day-to-day spending.
+     */
+    public function updateAllowances(PlanAllowancesRequest $request, MonthlyPlan $monthlyPlan): JsonResponse
+    {
+        $this->authorize('update', $monthlyPlan);
+
+        foreach ($request->validated()['allowances'] as $row) {
+            $amount = Money::of($row['amount']);
+
+            if (Money::isPositive($amount)) {
+                $monthlyPlan->budgetCategories()->updateOrCreate(
+                    ['category_id' => $row['category_id']],
+                    ['is_allowance' => true, 'budget_amount' => $amount],
+                );
+
+                continue;
+            }
+
+            $monthlyPlan->budgetCategories()
+                ->where('category_id', $row['category_id'])
+                ->where('is_allowance', true)
+                ->delete();
+        }
+
+        $plan = $this->plans->recalculate($monthlyPlan->fresh());
+
+        return response()->json([
+            'data' => $this->budgets->allowanceSummaries($plan),
+            'summary' => $this->plans->allocationSummary($plan),
+            'plan' => new MonthlyPlanResource($this->loadPlan($plan)),
+        ]);
     }
 
     /**

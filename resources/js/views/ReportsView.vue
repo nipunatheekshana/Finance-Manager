@@ -341,26 +341,30 @@ onMounted(async () => {
             <SelectField v-model="comparePlanB" :options="planOptions" label="Month B" />
           </div>
 
-          <table v-if="comparison" class="mt-5 w-full text-sm">
-            <thead>
-              <tr class="border-b border-line text-left">
-                <th scope="col" class="py-2 font-semibold text-ink-muted"></th>
-                <th scope="col" class="py-2 text-right font-semibold text-ink-muted">A</th>
-                <th scope="col" class="py-2 text-right font-semibold text-ink-muted">B</th>
-                <th scope="col" class="py-2 text-right font-semibold text-ink-muted">Change</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-line">
-              <tr v-for="row in comparison" :key="row.label">
-                <th scope="row" class="py-2.5 text-left font-normal text-ink-muted">{{ row.label }}</th>
-                <td class="py-2.5 text-right"><MoneyText :amount="row.a" size="sm" compact /></td>
-                <td class="py-2.5 text-right"><MoneyText :amount="row.b" size="sm" compact /></td>
-                <td class="py-2.5 text-right">
-                  <MoneyText :amount="row.delta.toFixed(2)" size="sm" class="font-semibold" colored signed compact />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- Four columns of figures can outgrow a 320px screen; scroll the
+               table rather than the page. -->
+          <div v-if="comparison" class="mt-5 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-line text-left">
+                  <th scope="col" class="py-2 font-semibold text-ink-muted"></th>
+                  <th scope="col" class="py-2 text-right font-semibold text-ink-muted">A</th>
+                  <th scope="col" class="py-2 text-right font-semibold text-ink-muted">B</th>
+                  <th scope="col" class="py-2 text-right font-semibold text-ink-muted">Change</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-line">
+                <tr v-for="row in comparison" :key="row.label">
+                  <th scope="row" class="py-2.5 text-left font-normal text-ink-muted">{{ row.label }}</th>
+                  <td class="py-2.5 text-right"><MoneyText :amount="row.a" size="sm" compact /></td>
+                  <td class="py-2.5 text-right"><MoneyText :amount="row.b" size="sm" compact /></td>
+                  <td class="py-2.5 text-right">
+                    <MoneyText :amount="row.delta.toFixed(2)" size="sm" class="font-semibold" colored signed compact />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 

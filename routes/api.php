@@ -113,6 +113,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('fixed-expenses', [MonthlyPlanController::class, 'addFixedExpense']);
         Route::put('fixed-expenses/{fixedExpense}', [MonthlyPlanController::class, 'updateFixedExpense']);
 
+        // Money set aside for gradual spending (fuel, groceries, eating out)
+        Route::get('allowances', [MonthlyPlanController::class, 'allowances']);
+        Route::put('allowances', [MonthlyPlanController::class, 'updateAllowances']);
+
         // Steps 3 & 4 — debt and savings allocations
         Route::put('allocations', [MonthlyPlanController::class, 'updateAllocations']);
 

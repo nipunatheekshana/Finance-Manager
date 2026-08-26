@@ -82,6 +82,7 @@ class FinancialPlanService
             ]);
 
             $this->seedFixedExpenses($plan);
+            $this->seedAllowances($plan);
             $this->seedDebtAllocations($plan);
             $this->seedSavingsAllocations($plan);
 
@@ -115,6 +116,26 @@ class FinancialPlanService
                     'due_date' => $row['first_due']->toDateString(),
                     'status' => 'planned',
                 ]
+            );
+        }
+    }
+
+    /**
+     * Reserve the categories the user spends against gradually — fuel,
+     * groceries, eating out. Unlike a bill these have no due date and no single
+     * payment; the money is set aside and drawn down over the cycle.
+     */
+    public function seedAllowances(MonthlyPlan $plan): void
+    {
+        $categories = $plan->user->categories()->active()->allowances()->get();
+
+        foreach ($categories as $category) {
+            $plan->budgetCategories()->updateOrCreate(
+                ['category_id' => $category->id],
+                [
+                    'is_allowance' => true,
+                    'budget_amount' => Money::of($category->monthly_budget),
+                ],
             );
         }
     }
@@ -197,12 +218,20 @@ class FinancialPlanService
      */
     public function recalculate(MonthlyPlan $plan): MonthlyPlan
     {
-        $plan->loadMissing(['fixedExpenses', 'debtAllocations', 'savingsAllocations']);
+        $plan->loadMissing(['fixedExpenses', 'debtAllocations', 'savingsAllocations', 'budgetCategories']);
 
         $fixed = Money::sum(
             $plan->fixedExpenses
                 ->filter(fn (PlanFixedExpense $row) => $row->countsTowardPlan())
                 ->map(fn (PlanFixedExpense $row) => $row->effectiveAmount())
+        );
+
+        // Money set aside for gradual spending. Reserved here and excluded from
+        // the weekly pool, so it is never counted twice.
+        $allowances = Money::sum(
+            $plan->budgetCategories
+                ->filter(fn ($row) => (bool) $row->is_allowance)
+                ->pluck('budget_amount')
         );
 
         $debt = Money::sum($plan->debtAllocations->pluck('planned_amount'));
@@ -213,11 +242,12 @@ class FinancialPlanService
 
         $spending = Money::sub(
             $income,
-            Money::add($fixed, $debt, $savings, $buffer)
+            Money::add($fixed, $allowances, $debt, $savings, $buffer)
         );
 
         $plan->forceFill([
             'fixed_expenses' => $fixed,
+            'allowances' => $allowances,
             'debt_payment' => $debt,
             'savings' => $savings,
             'spending_budget' => $spending,
@@ -255,6 +285,7 @@ class FinancialPlanService
             'extra_income' => Money::of($plan->extra_income),
             'opening_balance' => Money::of($plan->opening_balance),
             'fixed_expenses' => Money::of($plan->fixed_expenses),
+            'allowances' => Money::of($plan->allowances),
             'debt_payment' => Money::of($plan->debt_payment),
             'savings' => Money::of($plan->savings),
             'buffer' => Money::of($plan->buffer),
@@ -267,6 +298,7 @@ class FinancialPlanService
             // Shares of income, for the allocation chart.
             'breakdown' => [
                 ['key' => 'fixed_expenses', 'label' => 'Fixed Expenses', 'amount' => Money::of($plan->fixed_expenses), 'percentage' => Money::percentage($plan->fixed_expenses, $income)],
+                ['key' => 'allowances', 'label' => 'Allowances', 'amount' => Money::of($plan->allowances), 'percentage' => Money::percentage($plan->allowances, $income)],
                 ['key' => 'debt_payment', 'label' => 'Debt', 'amount' => Money::of($plan->debt_payment), 'percentage' => Money::percentage($plan->debt_payment, $income)],
                 ['key' => 'savings', 'label' => 'Savings', 'amount' => Money::of($plan->savings), 'percentage' => Money::percentage($plan->savings, $income)],
                 ['key' => 'buffer', 'label' => 'Buffer', 'amount' => Money::of($plan->buffer), 'percentage' => Money::percentage($plan->buffer, $income)],

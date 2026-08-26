@@ -16,6 +16,7 @@ enum AlertType: string
     case CreditCardIncreased = 'credit_card_increased';
     case WeeklyReview = 'weekly_review';
     case CycleSurplus = 'cycle_surplus';
+    case AllowanceRunningOut = 'allowance_running_out';
     case LowRunway = 'low_runway';
     case InvoiceOverdue = 'invoice_overdue';
     case IncomeBehindPlan = 'income_behind_plan';

@@ -80,6 +80,7 @@ class DashboardService
             'month_budget' => $monthly,
             'weeks' => $this->budgets->weeklySummaries($plan, $today),
             'categories' => $this->budgets->categorySummaries($plan),
+            'allowances' => $this->budgets->allowanceSummaries($plan, $today),
             'debts' => $this->debtSection($user),
             'savings' => $this->savingsSection($user, $plan),
             'recent_expenses' => $this->recentExpenses($user),

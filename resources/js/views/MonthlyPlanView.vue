@@ -11,6 +11,9 @@ import MoneyText from '@/components/common/MoneyText.vue'
 import TextField from '@/components/common/TextField.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import AllocationChart from '@/components/budgets/AllocationChart.vue'
+import AllowanceList from '@/components/budgets/AllowanceList.vue'
+import CategoryIcon from '@/components/common/CategoryIcon.vue'
+import { api } from '@/services/api'
 import { useBudgetStore } from '@/stores/budget'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useUiStore } from '@/stores/ui'
@@ -30,9 +33,16 @@ const weekInputs = ref<Record<number, string>>({})
 const addingBill = ref(false)
 const newBill = ref({ name: '', amount: '', due_date: '' })
 
+/** Amount reserved per category this cycle, keyed by category id. */
+const allowanceInputs = ref<Record<number, string>>({})
+const allowanceCategories = ref<
+  Array<{ id: number; name: string; icon: string; color: string; is_allowance: boolean }>
+>([])
+
 const STEPS = [
   'Income',
   'Fixed expenses',
+  'Allowances',
   'Debt',
   'Savings',
   'Spending',
@@ -101,9 +111,54 @@ watch(
   { immediate: true },
 )
 
+const allowanceTotal = computed(() =>
+  Object.values(allowanceInputs.value).reduce((total, value) => {
+    const amount = Number.parseFloat(value)
+    return total + (Number.isFinite(amount) ? amount : 0)
+  }, 0),
+)
+
+async function loadAllowances(): Promise<void> {
+  if (!plan.value) return
+
+  const rows = await budget.loadAllowances()
+  const response = await api.get<{
+    available_categories: Array<{
+      id: number
+      name: string
+      icon: string
+      color: string
+      is_allowance: boolean
+    }>
+  }>(`/monthly-plans/${plan.value.id}/allowances`)
+
+  allowanceCategories.value = response.available_categories
+
+  const seeded: Record<number, string> = {}
+  for (const row of rows) {
+    seeded[row.category_id] = String(Number.parseFloat(row.allocated))
+  }
+  allowanceInputs.value = seeded
+}
+
+async function saveAllowances(): Promise<void> {
+  if (!guardEditable()) return
+
+  await budget.saveAllowances(
+    allowanceCategories.value.map((category) => ({
+      category_id: category.id,
+      amount: Number.parseFloat(allowanceInputs.value[category.id] ?? '0').toFixed(2),
+    })),
+  )
+
+  await loadAllowances()
+  ui.success('Allowances saved')
+}
+
 onMounted(async () => {
   await budget.loadCurrent()
   seedWeekInputs()
+  await loadAllowances()
 })
 
 function guardEditable(): boolean {
@@ -462,8 +517,54 @@ async function reopen(): Promise<void> {
         </div>
       </section>
 
-      <!-- Step 3 — debt -->
+      <!-- Step 3 — allowances: money set aside for gradual spending -->
       <section v-else-if="step === 2" class="space-y-3">
+        <p class="text-sm text-ink-muted">
+          Some spending is not one payment — fuel, groceries, eating out. Set
+          aside an amount for each and it is reserved out of your income, then
+          drawn down as you spend, instead of competing with your daily money.
+        </p>
+
+        <div v-for="category in allowanceCategories" :key="category.id" class="card p-4">
+          <div class="mb-3 flex items-center gap-2.5">
+            <CategoryIcon :icon="category.icon" :color="category.color" size="sm" />
+            <span class="text-sm font-semibold text-ink">{{ category.name }}</span>
+          </div>
+
+          <MoneyInput
+            v-model="allowanceInputs[category.id]"
+            :disabled="isFinalized"
+            placeholder="0"
+          />
+        </div>
+
+        <p v-if="!allowanceCategories.length" class="text-sm text-ink-muted">
+          You have no categories yet. Add some from Settings first.
+        </p>
+
+        <div class="card flex items-center justify-between p-4">
+          <span class="text-sm font-semibold text-ink">Set aside</span>
+          <MoneyText :amount="allowanceTotal.toFixed(2)" size="lg" class="font-bold" />
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-secondary w-full"
+          :disabled="budget.saving || isFinalized"
+          @click="saveAllowances"
+        >
+          {{ budget.saving ? 'Saving…' : 'Save allowances' }}
+        </button>
+
+        <!-- Progress only means something once the cycle is under way. -->
+        <div v-if="isFinalized && budget.allowances.length" class="card p-4">
+          <p class="eyebrow mb-3">How they are going</p>
+          <AllowanceList :allowances="budget.allowances" />
+        </div>
+      </section>
+
+      <!-- Step 4 — debt -->
+      <section v-else-if="step === 3" class="space-y-3">
         <p v-if="!debtAllocations.length" class="text-sm text-ink-muted">
           You have no active debts. Nothing to allocate here.
         </p>
@@ -504,7 +605,7 @@ async function reopen(): Promise<void> {
       </section>
 
       <!-- Step 4 — savings -->
-      <section v-else-if="step === 3" class="space-y-3">
+      <section v-else-if="step === 4" class="space-y-3">
         <p v-if="!savingsAllocations.length" class="text-sm text-ink-muted">
           You have no savings goals yet. Add one from the Savings screen.
         </p>
@@ -533,7 +634,7 @@ async function reopen(): Promise<void> {
       </section>
 
       <!-- Step 5 — spending money -->
-      <section v-else-if="step === 4" class="space-y-4">
+      <section v-else-if="step === 5" class="space-y-4">
         <div class="card divide-y divide-line">
           <div class="flex items-center justify-between px-4 py-3">
             <span class="text-sm text-ink-muted">Salary</span>
@@ -553,6 +654,13 @@ async function reopen(): Promise<void> {
           <div class="flex items-center justify-between px-4 py-3">
             <span class="text-sm text-ink-muted">− Fixed expenses</span>
             <MoneyText :amount="summary.fixed_expenses" size="sm" class="font-semibold" />
+          </div>
+          <div
+            v-if="amountToNumber(summary.allowances) > 0"
+            class="flex items-center justify-between px-4 py-3"
+          >
+            <span class="text-sm text-ink-muted">− Allowances</span>
+            <MoneyText :amount="summary.allowances" size="sm" class="font-semibold" />
           </div>
           <div class="flex items-center justify-between px-4 py-3">
             <span class="text-sm text-ink-muted">− Debt payments</span>

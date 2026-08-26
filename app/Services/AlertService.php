@@ -125,6 +125,7 @@ class AlertService
         $plan = $this->plans->activePlanFor($user, $today);
 
         if ($plan !== null) {
+            $this->checkAllowances($user, $plan, $today);
             $this->checkWeeklyBudget($user, $plan, $today);
             $this->checkWeeklyReview($user, $plan, $today);
 
@@ -557,6 +558,53 @@ class AlertService
         );
     }
 
+    /**
+     * Money set aside for gradual spending is worth warning about early: once
+     * an allowance is gone the spending does not stop, it starts eating the
+     * day-to-day budget instead.
+     */
+    private function checkAllowances(User $user, \App\Models\MonthlyPlan $plan, CarbonImmutable $today): void
+    {
+        foreach ($this->budgets->allowanceSummaries($plan, $today) as $allowance) {
+            if ($allowance['status'] === 'over') {
+                $this->raise(
+                    $user,
+                    AlertType::AllowanceRunningOut,
+                    $allowance['name'].' allowance is used up',
+                    'You are LKR '.number_format((float) $allowance['over_by'], 2).' past what you set aside for '
+                        .$allowance['name'].'. Anything more comes out of your day-to-day money.',
+                    AlertSeverity::Critical,
+                    reference: 'allowance:'.$allowance['category_id'],
+                    data: ['category_id' => $allowance['category_id']],
+                    actionLabel: 'View budget',
+                    actionRoute: '/budget',
+                    on: $today,
+                );
+
+                continue;
+            }
+
+            // Spending faster than the cycle is passing, with enough of the
+            // cycle left for it to matter.
+            if ($allowance['ahead_of_pace'] && $allowance['days_remaining'] > 2 && $allowance['percentage_used'] >= 50) {
+                $this->raise(
+                    $user,
+                    AlertType::AllowanceRunningOut,
+                    $allowance['name'].' is going faster than planned',
+                    number_format($allowance['percentage_used'], 0).'% of your '.$allowance['name']
+                        .' allowance is gone with '.$allowance['days_remaining'].' days left — about LKR '
+                        .number_format((float) $allowance['daily_allowance'], 2).' a day from here.',
+                    AlertSeverity::Warning,
+                    reference: 'allowance:'.$allowance['category_id'],
+                    data: ['category_id' => $allowance['category_id']],
+                    actionLabel: 'View budget',
+                    actionRoute: '/budget',
+                    on: $today,
+                );
+            }
+        }
+    }
+
     private function checkCreditCardIncrease(User $user, Expense $expense): void
     {
         $debt = Debt::find($expense->debt_id);
@@ -595,6 +643,7 @@ class AlertService
             AlertType::SavingsTargetReached => 'savings_goals',
             AlertType::WeeklyReview => 'weekly_review',
             AlertType::CycleSurplus => 'cycle_surplus',
+            AlertType::AllowanceRunningOut => 'budget_warnings',
             AlertType::LowRunway, AlertType::InvoiceOverdue,
             AlertType::IncomeBehindPlan => 'income_health',
         });

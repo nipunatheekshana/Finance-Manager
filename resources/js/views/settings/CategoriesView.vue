@@ -44,6 +44,7 @@ const form = reactive({
   icon: 'circle',
   color: 'slate',
   monthly_budget: '',
+  is_allowance: false,
   warning_percentage: '80',
 })
 
@@ -55,6 +56,7 @@ function open(category: Category | null): void {
   form.icon = category?.icon ?? 'circle'
   form.color = category?.color ?? 'slate'
   form.monthly_budget = category?.monthly_budget ? String(Number.parseFloat(category.monthly_budget)) : ''
+  form.is_allowance = category?.is_allowance ?? false
   form.warning_percentage = String(category?.warning_percentage ?? 80)
 
   sheetOpen.value = true
@@ -71,6 +73,7 @@ async function submit(): Promise<void> {
     icon: form.icon,
     color: form.color,
     monthly_budget: Number.isFinite(budget) && budget > 0 ? budget.toFixed(2) : null,
+    is_allowance: Number.isFinite(budget) && budget > 0 ? form.is_allowance : false,
     warning_percentage: Number(form.warning_percentage),
   }
 
@@ -154,7 +157,8 @@ onMounted(async () => {
           <p class="text-xs text-ink-subtle">
             <template v-if="category.monthly_budget">
               <MoneyText :amount="category.monthly_budget" size="xs" class="font-semibold" /> a month ·
-              warns at {{ category.warning_percentage }}%
+              <template v-if="category.is_allowance">set aside in your plan</template>
+              <template v-else>warns at {{ category.warning_percentage }}%</template>
             </template>
             <template v-else>No budget set</template>
           </p>
@@ -195,6 +199,26 @@ onMounted(async () => {
           hint="Leave blank for no limit. You are never blocked from spending."
           :error="errors.monthly_budget"
         />
+
+        <!-- The difference between a warning and money actually put aside. -->
+        <label
+          v-if="Number.parseFloat(form.monthly_budget) > 0"
+          class="flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-field)] bg-sunken p-3"
+        >
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-ink">Set this money aside</span>
+            <span class="block text-xs text-ink-muted">
+              Reserve it in your monthly plan instead of only warning you. Use this
+              for spending that adds up through the month, like fuel or groceries.
+              It comes out of your income and stops competing with your daily budget.
+            </span>
+          </span>
+          <input
+            v-model="form.is_allowance"
+            type="checkbox"
+            class="mt-0.5 h-5 w-5 shrink-0 rounded border-line accent-[rgb(var(--color-brand))]"
+          />
+        </label>
 
         <TextField
           v-model="form.warning_percentage"

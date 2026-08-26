@@ -27,6 +27,7 @@ class MonthlyPlanResource extends JsonResource
             'surplus_resolved_at' => $this->surplus_resolved_at?->toIso8601String(),
             'total_income' => $this->totalIncome(),
             'fixed_expenses' => Money::of($this->fixed_expenses),
+            'allowances' => Money::of($this->allowances),
             'debt_payment' => Money::of($this->debt_payment),
             'savings' => Money::of($this->savings),
             'spending_budget' => Money::of($this->spending_budget),

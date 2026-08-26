@@ -41,10 +41,20 @@ class CycleSurplusService
     {
         $today = ($today ?? CarbonImmutable::today())->startOfDay();
 
-        $spent = $this->budgets->spentBetween($plan->user_id, $plan->cycle_start_date, $plan->cycle_end_date);
+        // Netted, so money spent out of an allowance is not also charged
+        // against a spending budget that already had the allowance removed.
+        $spent = $this->budgets->discretionarySpentBetween(
+            $plan,
+            $plan->cycle_start_date,
+            $plan->cycle_end_date,
+        );
+
         $unspent = Money::floorAtZero(Money::sub($plan->spending_budget, $spent));
+        $unusedAllowances = $this->unusedAllowances($plan);
         $unusedBuffer = $plan->bufferRemaining();
-        $total = Money::add($unspent, $unusedBuffer);
+
+        // Three pots, all of it still sitting in the bank.
+        $total = Money::add($unspent, $unusedAllowances, $unusedBuffer);
 
         $cycleEnded = CarbonImmutable::instance($plan->cycle_end_date)->startOfDay()->lt($today);
         $resolved = $plan->surplus_resolved_at !== null;
@@ -56,6 +66,8 @@ class CycleSurplusService
             'spending_budget' => Money::of($plan->spending_budget),
             'spent' => $spent,
             'unspent_budget' => $unspent,
+            'allowances' => Money::of($plan->allowances),
+            'unused_allowances' => $unusedAllowances,
             'buffer' => Money::of($plan->buffer),
             'buffer_used' => Money::of($plan->buffer_used),
             'unused_buffer' => $unusedBuffer,
@@ -69,6 +81,23 @@ class CycleSurplusService
             'resolved_amount' => $plan->surplus_amount === null ? null : Money::of($plan->surplus_amount),
             'carried_forward' => Money::of($plan->carried_forward),
         ];
+    }
+
+    /**
+     * Allowance money that was set aside and never spent.
+     *
+     * Reserved out of income but not used, so like the buffer it is real money
+     * still in the account rather than something the plan consumed.
+     */
+    public function unusedAllowances(MonthlyPlan $plan): string
+    {
+        $unused = '0.00';
+
+        foreach ($this->budgets->allowanceSummaries($plan) as $allowance) {
+            $unused = Money::add($unused, Money::floorAtZero($allowance['remaining']));
+        }
+
+        return $unused;
     }
 
     /**
@@ -321,7 +350,10 @@ class CycleSurplusService
      */
     private function consumeBuffer(MonthlyPlan $plan, string $allocated, array $summary): void
     {
-        $fromBuffer = Money::floorAtZero(Money::sub($allocated, $summary['unspent_budget']));
+        $fromBuffer = Money::floorAtZero(Money::sub(
+            $allocated,
+            Money::add($summary['unspent_budget'], $summary['unused_allowances']),
+        ));
 
         if (! Money::isPositive($fromBuffer)) {
             return;

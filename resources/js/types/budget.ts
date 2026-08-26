@@ -70,6 +70,7 @@ export interface MonthlyPlan {
   surplus_resolved_at: string | null
   total_income: Money
   fixed_expenses: Money
+  allowances: Money
   debt_payment: Money
   savings: Money
   spending_budget: Money
@@ -111,6 +112,9 @@ export interface CycleSurplus {
   spending_budget: Money
   spent: Money
   unspent_budget: Money
+  allowances: Money
+  /** Set aside for a category and never spent. */
+  unused_allowances: Money
   buffer: Money
   buffer_used: Money
   unused_buffer: Money
@@ -156,6 +160,27 @@ export interface SurplusResult {
   left_in_bank: Money
 }
 
+/** Money set aside for a category and drawn down through the cycle. */
+export interface AllowanceSummary {
+  category_id: number
+  name: string
+  icon: string
+  color: string
+  allocated: Money
+  spent: Money
+  remaining: Money
+  percentage_used: number
+  status: BudgetStatus
+  over_by: Money
+  days_remaining: number
+  /** What is left, spread over the days that are left. */
+  daily_allowance: Money
+  /** What an even spend would have used by now. */
+  expected_by_now: Money
+  ahead_of_pace: boolean
+  pace_difference: Money
+}
+
 export interface AllocationSummary {
   total_income: Money
   /** Salary only, before anything carried in from last cycle. */
@@ -166,6 +191,7 @@ export interface AllocationSummary {
   actual_income: Money | null
   extra_income: Money
   fixed_expenses: Money
+  allowances: Money
   debt_payment: Money
   savings: Money
   buffer: Money

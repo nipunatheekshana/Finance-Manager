@@ -8,6 +8,7 @@ const props = defineProps<{ breakdown: AllocationBreakdownRow[] }>()
 
 const TONES: Record<string, string> = {
   fixed_expenses: 'bg-info',
+  allowances: 'bg-violet-500',
   debt_payment: 'bg-over',
   savings: 'bg-safe',
   buffer: 'bg-warn',

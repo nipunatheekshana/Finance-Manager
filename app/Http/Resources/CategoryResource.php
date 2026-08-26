@@ -17,6 +17,7 @@ class CategoryResource extends JsonResource
             'color' => $this->color,
             'monthly_budget' => $this->monthly_budget === null ? null : Money::of($this->monthly_budget),
             'weekly_budget' => $this->weekly_budget === null ? null : Money::of($this->weekly_budget),
+            'is_allowance' => $this->is_allowance,
             'warning_percentage' => $this->warning_percentage,
             'is_default' => $this->is_default,
             'active' => $this->active,

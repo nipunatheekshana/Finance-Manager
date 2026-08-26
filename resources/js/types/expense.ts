@@ -6,6 +6,8 @@ export interface Category {
   icon: string
   color: string
   monthly_budget: Money | null
+  /** Reserved in the plan rather than only warned about. */
+  is_allowance: boolean
   weekly_budget: Money | null
   warning_percentage: number
   is_default: boolean

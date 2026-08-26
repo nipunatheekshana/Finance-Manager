@@ -9,6 +9,7 @@ import SectionHeader from '@/components/common/SectionHeader.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import CategoryBudgetList from '@/components/dashboard/CategoryBudgetList.vue'
+import AllowanceList from '@/components/budgets/AllowanceList.vue'
 import OverspendSheet from '@/components/budgets/OverspendSheet.vue'
 import WeeklyReviewSheet from '@/components/budgets/WeeklyReviewSheet.vue'
 import { useBudgetStore } from '@/stores/budget'
@@ -24,6 +25,7 @@ const reviewWeekId = ref<number | null>(null)
 const plan = computed(() => budget.plan)
 const weeks = computed(() => budget.weekSummaries)
 const categories = computed(() => dashboard.data?.categories ?? [])
+const allowances = computed(() => dashboard.data?.allowances ?? [])
 const month = computed(() => dashboard.data?.month_budget ?? null)
 
 /** Finished weeks that ran over and have not been resolved yet. */
@@ -190,6 +192,19 @@ async function afterAdjustment(): Promise<void> {
             </button>
           </li>
         </ul>
+      </section>
+
+      <!-- Allowances -->
+      <section v-if="allowances.length">
+        <SectionHeader
+          title="Allowances"
+          subtitle="Reserved out of your income and drawn down as you spend"
+          action-label="Adjust"
+          action-to="/plan"
+        />
+        <div class="card p-4">
+          <AllowanceList :allowances="allowances" />
+        </div>
       </section>
 
       <!-- Category budgets -->
