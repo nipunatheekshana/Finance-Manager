@@ -180,7 +180,11 @@ async function saveIncome(): Promise<void> {
 }
 
 async function setBillStatus(id: number, status: string): Promise<void> {
-  if (!guardEditable()) return
+  // Settling a bill is not editing the plan: a paid bill was always part of
+  // the total, so recording it mid-cycle changes no budget. Skipping or
+  // postponing one does, which is why those stay locked once the plan is live.
+  if (status !== 'paid' && !guardEditable()) return
+
   await budget.updateFixedExpense(id, { status })
 }
 
@@ -470,12 +474,12 @@ async function reopen(): Promise<void> {
             </button>
             <button
               type="button"
-              class="badge min-h-9 bg-sunken px-3 text-ink-muted"
-              :disabled="isFinalized"
+              class="badge min-h-9 px-3"
+              :class="bill.status === 'paid' ? 'bg-safe text-white' : 'bg-sunken text-ink-muted'"
               @click="setBillStatus(bill.id, 'paid')"
             >
               <Check class="h-3.5 w-3.5" aria-hidden="true" />
-              Paid
+              {{ bill.status === 'paid' ? 'Paid' : 'Mark paid' }}
             </button>
           </div>
 

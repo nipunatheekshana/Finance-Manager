@@ -17,11 +17,13 @@ import SectionHeader from '@/components/common/SectionHeader.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import SurplusSheet from '@/components/budgets/SurplusSheet.vue'
+import BillPaymentSheet from '@/components/budgets/BillPaymentSheet.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useBudgetStore } from '@/stores/budget'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { relativeDay } from '@/composables/useDates'
+import type { UpcomingBill } from '@/types'
 
 const dashboard = useDashboardStore()
 const budget = useBudgetStore()
@@ -29,6 +31,7 @@ const ui = useUiStore()
 const auth = useAuthStore()
 
 const surplusPlanId = ref<number | null>(null)
+const payingBill = ref<UpcomingBill | null>(null)
 
 const data = computed(() => dashboard.data)
 
@@ -223,18 +226,25 @@ onMounted(() => {
       <section v-if="data.upcoming_bills.items.length">
         <SectionHeader title="Still to pay this cycle" action-label="Cash flow" action-to="/cash-flow" />
         <ul class="card divide-y divide-line">
-          <li
-            v-for="bill in data.upcoming_bills.items.slice(0, 4)"
-            :key="bill.id"
-            class="flex items-center justify-between gap-3 px-4 py-3"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-ink">{{ bill.name }}</p>
-              <p class="text-xs" :class="bill.is_overdue ? 'text-over' : 'text-ink-subtle'">
-                {{ bill.is_overdue ? 'Overdue' : relativeDay(bill.date) }}
-              </p>
-            </div>
-            <MoneyText :amount="bill.amount" size="sm" class="shrink-0 font-semibold" />
+          <li v-for="bill in data.upcoming_bills.items.slice(0, 4)" :key="bill.id">
+            <!-- Settling a bill is a live-cycle action, so it belongs here
+                 rather than back in the planner. -->
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-sunken"
+              @click="payingBill = bill"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-ink">{{ bill.name }}</p>
+                <p class="text-xs" :class="bill.is_overdue ? 'text-over' : 'text-ink-subtle'">
+                  {{ bill.is_overdue ? 'Overdue' : relativeDay(bill.date) }}
+                </p>
+              </div>
+              <span class="flex shrink-0 items-center gap-2">
+                <MoneyText :amount="bill.amount" size="sm" class="font-semibold" />
+                <span class="badge bg-brand-soft text-brand">Pay</span>
+              </span>
+            </button>
           </li>
         </ul>
       </section>
@@ -266,6 +276,8 @@ onMounted(() => {
         Add expense
       </button>
     </div>
+
+    <BillPaymentSheet :bill="payingBill" @close="payingBill = null" @paid="dashboard.refresh()" />
 
     <SurplusSheet
       :plan-id="surplusPlanId"

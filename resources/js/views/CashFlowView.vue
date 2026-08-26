@@ -6,11 +6,13 @@ import MoneyText from '@/components/common/MoneyText.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SectionHeader from '@/components/common/SectionHeader.vue'
+import BillPaymentSheet from '@/components/budgets/BillPaymentSheet.vue'
 import { api } from '@/services/api'
 import { formatDate, formatDateRange, relativeDay } from '@/composables/useDates'
-import type { CashFlowForecast } from '@/types'
+import type { CashFlowForecast, UpcomingBill } from '@/types'
 
 const forecast = ref<CashFlowForecast | null>(null)
+const payingBill = ref<UpcomingBill | null>(null)
 const message = ref('')
 const loading = ref(true)
 
@@ -28,7 +30,7 @@ const runningBalance = computed(() => {
   })
 })
 
-onMounted(async () => {
+async function load(): Promise<void> {
   try {
     const response = await api.get<{ data: CashFlowForecast | null; message?: string }>('/cash-flow')
     forecast.value = response.data
@@ -36,7 +38,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -162,21 +166,28 @@ onMounted(async () => {
       <section v-if="forecast.upcoming_bills.items.length">
         <SectionHeader title="Bills still to pay" />
         <ul class="card divide-y divide-line px-4">
-          <li
-            v-for="bill in forecast.upcoming_bills.items"
-            :key="bill.id"
-            class="flex items-center justify-between gap-3 py-3"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-ink">{{ bill.name }}</p>
-              <p class="text-xs" :class="bill.is_overdue ? 'text-over' : 'text-ink-subtle'">
-                {{ bill.is_overdue ? `Overdue since ${formatDate(bill.date)}` : relativeDay(bill.date) }}
-              </p>
-            </div>
-            <MoneyText :amount="bill.amount" size="sm" class="shrink-0 font-semibold" />
+          <li v-for="bill in forecast.upcoming_bills.items" :key="bill.id">
+            <button
+              type="button"
+              class="-mx-4 flex w-[calc(100%+2rem)] items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-sunken"
+              @click="payingBill = bill"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-ink">{{ bill.name }}</p>
+                <p class="text-xs" :class="bill.is_overdue ? 'text-over' : 'text-ink-subtle'">
+                  {{ bill.is_overdue ? `Overdue since ${formatDate(bill.date)}` : relativeDay(bill.date) }}
+                </p>
+              </div>
+              <span class="flex shrink-0 items-center gap-2">
+                <MoneyText :amount="bill.amount" size="sm" class="font-semibold" />
+                <span class="badge bg-brand-soft text-brand">Pay</span>
+              </span>
+            </button>
           </li>
         </ul>
       </section>
     </div>
+
+    <BillPaymentSheet :bill="payingBill" @close="payingBill = null" @paid="load" />
   </div>
 </template>
