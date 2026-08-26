@@ -77,6 +77,66 @@ class EarlyDebtPaymentTest extends TestCase
         $this->assertSame('6000.00', $items[0]['paid']);
     }
 
+    #[Test]
+    public function the_debt_screen_reports_what_this_cycle_asked_for(): void
+    {
+        [$user, $debt] = $this->activePlanWithCard();
+
+        $cycle = $this->actingAs($user)->getJson("/api/debts/{$debt->id}")
+            ->assertOk()
+            ->json('data.cycle');
+
+        $this->assertSame('15000.00', $cycle['planned']);
+        $this->assertSame('0.00', $cycle['paid']);
+        $this->assertSame('15000.00', $cycle['outstanding']);
+    }
+
+    #[Test]
+    public function the_outstanding_figure_is_what_is_left_of_the_cycles_plan(): void
+    {
+        [$user, $debt] = $this->activePlanWithCard();
+
+        $this->actingAs($user)->postJson("/api/debts/{$debt->id}/payments", [
+            'amount' => '6000.00',
+            'payment_date' => '2026-09-26',
+        ])->assertCreated();
+
+        $cycle = $this->actingAs($user)->getJson("/api/debts/{$debt->id}")->json('data.cycle');
+
+        // The payment sheet pre-fills this, not the standing 15,000.
+        $this->assertSame('9000.00', $cycle['outstanding']);
+        $this->assertSame('6000.00', $cycle['paid']);
+    }
+
+    #[Test]
+    public function a_cycle_amount_changed_in_the_planner_wins_over_the_standing_one(): void
+    {
+        [$user, $debt, $plan] = $this->activePlanWithCard();
+
+        // The planner cut this month's payment back to 9,000.
+        $this->actingAs($user)->putJson("/api/monthly-plans/{$plan->id}/allocations", [
+            'debts' => [['debt_id' => $debt->id, 'planned_amount' => '9000.00']],
+        ])->assertOk();
+
+        $data = $this->actingAs($user)->getJson("/api/debts/{$debt->id}")->json('data');
+
+        $this->assertSame('15000.00', $data['planned_payment'], 'The debt keeps its standing figure.');
+        $this->assertSame('9000.00', $data['cycle']['outstanding'], 'This month only asks for 9,000.');
+    }
+
+    #[Test]
+    public function the_cash_flow_screen_reports_savings_still_to_put_aside(): void
+    {
+        [$user] = $this->activePlanWithCard();
+
+        $savings = $this->actingAs($user)->getJson('/api/cash-flow')
+            ->assertOk()
+            ->json('data.planned_savings');
+
+        $this->assertArrayHasKey('items', $savings);
+        $this->assertArrayHasKey('total', $savings);
+    }
+
     /** @return array{0: User, 1: Debt, 2: \App\Models\MonthlyPlan} */
     private function activePlanWithCard(): array
     {

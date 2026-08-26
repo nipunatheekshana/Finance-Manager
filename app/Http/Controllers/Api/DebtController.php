@@ -9,6 +9,7 @@ use App\Http\Resources\PaymentMethodResource;
 use App\Models\Debt;
 use App\Services\CardPaymentMethodService;
 use App\Services\DebtPayoffService;
+use App\Services\FinancialPlanService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class DebtController extends Controller
     public function __construct(
         private readonly DebtPayoffService $payoff,
         private readonly CardPaymentMethodService $cards,
+        private readonly FinancialPlanService $plans,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -58,12 +60,22 @@ class DebtController extends Controller
         ], 201);
     }
 
-    public function show(Debt $debt): JsonResponse
+    public function show(Request $request, Debt $debt): JsonResponse
     {
         $this->authorize('view', $debt);
 
+        $plan = $this->plans->activePlanFor($request->user());
+
+        $debt->load([
+            'payments' => fn ($q) => $q->orderByDesc('payment_date'),
+            // Scoped to the active cycle: what this month asked for, and how
+            // much of it has already been paid.
+            // 0 matches nothing, which is the right answer with no active plan.
+            'planAllocations' => fn ($q) => $q->where('monthly_plan_id', $plan?->id ?? 0),
+        ]);
+
         return response()->json([
-            'data' => new DebtResource($debt->load(['payments' => fn ($q) => $q->orderByDesc('payment_date')])),
+            'data' => new DebtResource($debt),
             'payoff' => $this->payoff->project($debt),
         ]);
     }

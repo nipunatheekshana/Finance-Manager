@@ -149,6 +149,19 @@ export interface UpcomingDebtPayment {
   date: string | null
 }
 
+/** A savings contribution planned for this cycle and not yet fully made. */
+export interface PlannedSaving {
+  id: number
+  kind: string
+  savings_goal_id: number
+  name: string
+  /** Still to put aside, not the full planned amount. */
+  amount: Money
+  planned: Money
+  saved: Money
+  date: string | null
+}
+
 export interface Dashboard {
   today: string
   has_plan: boolean
@@ -238,7 +251,7 @@ export interface CashFlowForecast {
   spent_so_far: Money
   upcoming_bills: { items: UpcomingBill[]; total: Money }
   upcoming_debt_payments: { items: UpcomingDebtPayment[]; total: Money }
-  planned_savings: { items: Array<Record<string, unknown>>; total: Money }
+  planned_savings: { items: PlannedSaving[]; total: Money }
   total_committed: Money
   buffer_remaining: Money
   projected_spending_balance: Money

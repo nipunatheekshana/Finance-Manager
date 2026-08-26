@@ -28,8 +28,16 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return
-    // Default to the planned payment: usually exactly what the user is paying.
-    amount.value = props.debt ? String(Number.parseFloat(props.debt.planned_payment)) : ''
+
+    // Default to what this cycle still asks for. The debt's standing planned
+    // payment is the wrong number once the planner has changed it for the
+    // month, or once part of it has already been paid.
+    const cycle = props.debt?.cycle
+    const fallback = props.debt?.planned_payment ?? '0'
+
+    amount.value = props.debt
+      ? String(Number.parseFloat(cycle ? cycle.outstanding : fallback))
+      : ''
     paymentDate.value = todayIso()
     notes.value = ''
     errors.value = {}
@@ -83,6 +91,21 @@ async function submit(): Promise<void> {
       <div class="rounded-[var(--radius-card)] bg-sunken p-4 text-center">
         <p class="text-sm text-ink-muted">Current balance</p>
         <MoneyText :amount="debt.current_balance" size="2xl" class="mt-0.5 block font-bold" />
+      </div>
+
+      <!-- Say plainly what the cycle asked for, so the pre-filled figure is
+           never a mystery. -->
+      <div
+        v-if="debt.cycle"
+        class="flex items-baseline justify-between gap-3 rounded-[var(--radius-field)] bg-brand-soft px-3.5 py-2.5"
+      >
+        <span class="text-sm text-ink-muted">
+          Planned this cycle
+          <template v-if="Number.parseFloat(debt.cycle.paid) > 0">
+            · <MoneyText :amount="debt.cycle.paid" size="sm" /> already paid
+          </template>
+        </span>
+        <MoneyText :amount="debt.cycle.outstanding" size="sm" class="shrink-0 font-bold text-ink" />
       </div>
 
       <MoneyInput v-model="amount" large label="Payment amount" :error="errors.amount" data-autofocus />

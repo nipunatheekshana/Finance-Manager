@@ -215,6 +215,30 @@ onMounted(load)
           </li>
         </ul>
       </section>
+
+      <section v-if="forecast.planned_savings.items.length">
+        <SectionHeader title="Savings still to put aside" />
+        <ul class="card divide-y divide-line px-4">
+          <li v-for="row in forecast.planned_savings.items" :key="row.id">
+            <RouterLink
+              :to="`/savings/${row.savings_goal_id}`"
+              class="-mx-4 flex w-[calc(100%+2rem)] items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-sunken"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-ink">{{ row.name }}</p>
+                <p class="text-xs text-ink-subtle">
+                  <MoneyText :amount="row.saved" size="xs" /> of
+                  <MoneyText :amount="row.planned" size="xs" /> put aside
+                </p>
+              </div>
+              <span class="flex shrink-0 items-center gap-2">
+                <MoneyText :amount="row.amount" size="sm" class="font-semibold" />
+                <span class="badge bg-brand-soft text-brand">Add</span>
+              </span>
+            </RouterLink>
+          </li>
+        </ul>
+      </section>
     </div>
 
     <BillPaymentSheet :bill="payingBill" @close="payingBill = null" @paid="load" />

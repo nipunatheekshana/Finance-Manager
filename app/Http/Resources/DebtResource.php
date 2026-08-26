@@ -32,7 +32,35 @@ class DebtResource extends JsonResource
             'progress_percentage' => $this->progressPercentage(),
             'utilisation_percentage' => $this->utilisationPercentage(),
             'status' => $this->status,
+            // What the active plan asked for, which is not always the debt's
+            // standing planned payment: the planner can change it for a single
+            // cycle, and part of it may already be paid.
+            'cycle' => $this->when(
+                $this->relationLoaded('planAllocations'),
+                fn () => $this->cyclePayload(),
+            ),
             'payments' => DebtPaymentResource::collection($this->whenLoaded('payments')),
+        ];
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function cyclePayload(): ?array
+    {
+        $allocation = $this->planAllocations->first();
+
+        if ($allocation === null) {
+            return null;
+        }
+
+        $planned = Money::of($allocation->planned_amount);
+        $paid = Money::of($allocation->paid_amount);
+
+        return [
+            'planned' => $planned,
+            'paid' => $paid,
+            'outstanding' => Money::floorAtZero(Money::sub($planned, $paid)),
         ];
     }
 }

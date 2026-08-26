@@ -22,6 +22,12 @@ export interface Debt {
   progress_percentage: number
   utilisation_percentage: number | null
   status: 'active' | 'paid_off' | 'closed'
+  /**
+   * What the active plan asked for this cycle. Not the same as
+   * planned_payment: the planner can change it for a single month, and part
+   * of it may already be paid. Only sent by the single-debt endpoint.
+   */
+  cycle?: { planned: Money; paid: Money; outstanding: Money } | null
   payments?: DebtPayment[]
 }
 

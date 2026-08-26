@@ -231,8 +231,13 @@ budgeted, so the two stay comparable.
 
 Tap a debt instalment and it opens that debt's payment screen with the
 payment already started (`/debts/{id}?pay=1`), because a card payment needs the
-real balance and the payoff maths beside it. The date defaults to today and the
-amount to what was planned, so paying the 15th's card bill on the 2nd is just a
+real balance and the payoff maths beside it.
+
+The amount is pre-filled with **what this cycle still asks for**, not the
+debt's standing planned payment — the planner can change the figure for a
+single month, and part of it may already be paid. The sheet says which it is
+("Planned this cycle · 6,000 already paid") so the number is never a mystery.
+The date defaults to today, so paying the 15th's card bill on the 2nd is just a
 payment on the 2nd: `DebtPaymentService` credits it to whichever cycle contains
 the payment date, so the plan's allocation shows it as paid and the instalment
 drops off the list.
@@ -242,6 +247,12 @@ was always counted in the plan's total, so recording it mid-cycle moves no
 money and changes no budget — which is why it works on an active plan, while
 skipping or postponing a bill (both of which *do* re-cut the spending budget)
 stays locked until the plan is reopened.
+
+The cash-flow screen breaks the cycle's commitments into the three things they
+actually are — **bills still to pay**, **debt payments still to make** and
+**savings still to put aside** — each row tappable to the screen that settles
+it. All three were computed by `CashFlowService` from the beginning; only the
+bills were ever shown.
 
 ### A credit card being paid down is still a card being used
 
@@ -436,7 +447,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 287 tests
+php artisan test           # 291 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
