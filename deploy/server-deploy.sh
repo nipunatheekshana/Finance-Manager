@@ -9,17 +9,17 @@ DOMAIN="${DOMAIN:?DOMAIN env var is required}"
 APP_DIR="$HOME/domains/$DOMAIN/finance-manager"
 WEB_ROOT="$HOME/domains/$DOMAIN/public_html"
 
-# --- Pick a PHP >= 8.3 binary -------------------------------------------------
+# --- Pick a PHP >= 8.4 binary -------------------------------------------------
 PHP_BIN=""
-for candidate in php php8.3 php83 /opt/alt/php83/usr/bin/php /opt/alt/php84/usr/bin/php; do
+for candidate in php php8.4 php84 /opt/alt/php84/usr/bin/php /opt/alt/php85/usr/bin/php; do
   if command -v "$candidate" >/dev/null 2>&1 \
-     && "$candidate" -r 'exit(version_compare(PHP_VERSION, "8.3.0", ">=") ? 0 : 1);' 2>/dev/null; then
+     && "$candidate" -r 'exit(version_compare(PHP_VERSION, "8.4.1", ">=") ? 0 : 1);' 2>/dev/null; then
     PHP_BIN="$candidate"
     break
   fi
 done
 if [ -z "$PHP_BIN" ]; then
-  echo "ERROR: no PHP >= 8.3 binary found on server" >&2
+  echo "ERROR: no PHP >= 8.4 binary found on server" >&2
   exit 1
 fi
 echo "Using PHP: $($PHP_BIN -v | head -1)"
