@@ -23,3 +23,17 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+<IfModule mod_mime.c>
+    # Apache does not know this extension, so it would otherwise be served as
+    # plain text — which browsers tolerate but installability checks flag.
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+<IfModule mod_headers.c>
+    # A cached service worker can never be replaced, so a bad deploy would
+    # stick around on every installed device.
+    <Files "sw.js">
+        Header set Cache-Control "no-cache, max-age=0, must-revalidate"
+    </Files>
+</IfModule>

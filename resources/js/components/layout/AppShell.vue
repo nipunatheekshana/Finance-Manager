@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
 import BottomNav from './BottomNav.vue'
+import InstallSheet from './InstallSheet.vue'
 import ExpenseSheet from '@/components/expenses/ExpenseSheet.vue'
 import AffordabilitySheet from '@/components/dashboard/AffordabilitySheet.vue'
 import OverspendSheet from '@/components/budgets/OverspendSheet.vue'
@@ -49,6 +50,7 @@ onMounted(() => {
 
     <!-- Global sheets, reachable from every screen. -->
     <ExpenseSheet />
+    <InstallSheet :open="ui.installSheetOpen" @close="ui.installSheetOpen = false" />
     <AffordabilitySheet />
 
     <!-- Opens the moment an expense tips a week over budget. -->

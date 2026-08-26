@@ -2,11 +2,13 @@
 import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Home, ListChecks,
-  LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
+  Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Home,
+  ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
+import { useInstallPrompt } from '@/composables/useInstallPrompt'
 import type { Component } from 'vue'
 
 const props = defineProps<{ open: boolean }>()
@@ -15,6 +17,8 @@ const emit = defineEmits<{ close: [] }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const ui = useUiStore()
+const { canInstall } = useInstallPrompt()
 
 /**
  * Every destination, including the four in the bottom bar: on a phone this
@@ -69,6 +73,11 @@ function isActive(to: string, exact = false): boolean {
 // page that just loaded.
 watch(() => route.fullPath, () => emit('close'))
 
+function openInstall(): void {
+  emit('close')
+  ui.installSheetOpen = true
+}
+
 async function signOut(): Promise<void> {
   emit('close')
   await auth.logout()
@@ -105,6 +114,19 @@ async function signOut(): Promise<void> {
             </RouterLink>
           </li>
         </ul>
+      </section>
+
+      <!-- Nothing else in the app mentions that it can be installed. -->
+      <section v-if="canInstall" class="border-t border-line pt-4">
+        <button
+          type="button"
+          class="flex min-h-12 w-full items-center gap-3 rounded-[var(--radius-field)] bg-brand-soft px-3 py-2.5 text-sm font-semibold text-ink transition"
+          @click="openInstall"
+        >
+          <Download class="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+          <span class="flex-1 text-left">Add to home screen</span>
+          <ChevronRight class="h-4 w-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+        </button>
       </section>
 
       <!-- Signing out lived only on the Settings screen, which a phone could

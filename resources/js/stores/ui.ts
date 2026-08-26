@@ -35,6 +35,8 @@ export const useUiStore = defineStore('ui', () => {
   const updateAvailable = ref(false)
   /** Week that needs an overspend decision, opened from anywhere. */
   const overspendWeekId = ref<number | null>(null)
+  /** "Install this app", opened from either menu. */
+  const installSheetOpen = ref(false)
 
   const prefersDark = computed(() => {
     if (theme.value === 'dark') return true
@@ -116,6 +118,7 @@ export const useUiStore = defineStore('ui', () => {
     editingExpenseId,
     updateAvailable,
     overspendWeekId,
+    installSheetOpen,
     applyTheme,
     setTheme,
     toast,

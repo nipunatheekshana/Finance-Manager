@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, CreditCard, Home, LogOut, PiggyBank,
-  Receipt, Settings, TrendingUp, Wallet,
+  Banknote, BarChart3, CalendarDays, CreditCard, Download, Home, LogOut,
+  PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
+import { useInstallPrompt } from '@/composables/useInstallPrompt'
 import { useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const ui = useUiStore()
+const { canInstall } = useInstallPrompt()
 
 const items = [
   { to: '/', label: 'Dashboard', icon: Home, exact: true },
@@ -65,6 +69,16 @@ async function signOut(): Promise<void> {
     </nav>
 
     <div class="border-t border-line p-3">
+      <button
+        v-if="canInstall"
+        type="button"
+        class="mb-1 flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-field)] px-3 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-sunken hover:text-ink"
+        @click="ui.installSheetOpen = true"
+      >
+        <Download class="h-5 w-5 shrink-0" aria-hidden="true" />
+        Install app
+      </button>
+
       <div class="px-3 py-2">
         <p class="truncate text-sm font-semibold text-ink">{{ auth.user?.name }}</p>
         <p class="truncate text-xs text-ink-subtle">{{ auth.user?.email }}</p>

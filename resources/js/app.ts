@@ -6,6 +6,10 @@ import { onApiError } from './services/api'
 import { useUiStore } from './stores/ui'
 import { useExpenseStore } from './stores/expenses'
 import { registerServiceWorker } from './registerServiceWorker'
+import { initInstallPrompt } from './composables/useInstallPrompt'
+
+// Before anything else: the browser offers the install event once, early.
+initInstallPrompt()
 
 const app = createApp(App)
 

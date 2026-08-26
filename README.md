@@ -388,12 +388,30 @@ The service worker (`resources/js/sw.ts`, built to `/sw.js` so it can control
 the whole origin) keeps the shell, the reference data and the last dashboard
 response available offline.
 
+### Installing it
+
+The app installs to a home screen or a desktop, over HTTPS, on all three
+platforms — but each one offers it differently, so the app offers it itself
+from **More → Add to home screen** on a phone and **Install app** in the
+sidebar on a computer:
+
+| | How it installs |
+|---|---|
+| Android (Chrome, Edge) | `beforeinstallprompt` is captured at start-up and replayed from our own button, so it is one tap |
+| Desktop (Chrome, Edge) | the same one-tap prompt |
+| iPhone, iPad | Safari has no install API at all — the sheet shows the Share → Add to Home Screen steps, and says that Chrome on iOS cannot do it |
+
+iOS ignores the manifest, so the icon, name and status bar come from the
+`apple-*` tags in `resources/views/app.blade.php` instead. `sw.js` is served
+`no-cache` — a cached worker can never be replaced, which would freeze a bad
+deploy onto every installed device.
+
 ---
 
 ## Testing
 
 ```bash
-php artisan test           # 247 tests
+php artisan test           # 279 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
