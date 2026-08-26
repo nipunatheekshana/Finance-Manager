@@ -202,6 +202,32 @@ Accounts that recorded a salary twice before this have inflated income
 ledgers. `php artisan finance:dedupe-salaries` reports them and removes them
 with `--force`, keeping the most recent figure.
 
+### One board for the whole cycle
+
+Every part of a plan reported its own progress somewhere — bills on the
+dashboard, debt on the debt screen, allowances on the budget screen, spending
+in the weeks — and nowhere put them side by side. **Cycle progress** does:
+income, bills, allowances, debt, savings, day-to-day spending and buffer, each
+with what was planned, what has actually happened, and whether it is done.
+
+Two ideas make the board readable:
+
+- **Progress is measured against time.** 40% settled means something very
+  different on day 3 and on day 27, so the headline shows commitments settled
+  *and* how far the cycle has run, and calls the plan behind only when the
+  first falls more than five points below the second.
+- **Only commitments count.** Bills, debt and savings are obligations to
+  discharge; day-to-day spending is money to *use*. Counting spending as
+  progress would make an underspent cycle look like a failing one, so it is
+  tracked in its own section and left out of the headline.
+
+Skipped and postponed bills stay listed but stop counting as owed, so the
+board never reports a debt to something the plan already dropped. Past cycles
+are readable from the same screen by picking them from the list.
+
+[`CycleProgressService`](app/Services/CycleProgressService.php) assembles it
+from the services that already do the arithmetic; it computes nothing new.
+
 ### Nothing moves without the user
 
 When a week is overspent the app presents the options — reduce next week, use
@@ -366,6 +392,7 @@ app/
     ExpenseService               Expense writes, card linkage, offline sync
     CardPaymentMethodService     One payment method per credit card
     ExpenseImpactService         What an expense would do, before it is saved
+    CycleProgressService         Planned against actual, entity by entity
     CycleSurplusService          What happens to a finished cycle's leftover
     DebtPaymentService           Payments, card charges, reversals
     DebtPayoffService            Payoff estimates with or without interest
@@ -464,7 +491,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 297 tests
+php artisan test           # 305 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

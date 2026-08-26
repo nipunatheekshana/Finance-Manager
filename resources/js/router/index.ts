@@ -108,6 +108,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Calendar' },
       },
       {
+        path: 'cycle',
+        name: 'cycle-progress',
+        component: () => import('@/views/CycleProgressView.vue'),
+        meta: { title: 'Cycle progress' },
+      },
+      {
         path: 'cash-flow',
         name: 'cash-flow',
         component: () => import('@/views/CashFlowView.vue'),

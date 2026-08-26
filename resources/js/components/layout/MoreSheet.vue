@@ -2,8 +2,8 @@
 import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Home,
-  ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
+  Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Gauge,
+  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -54,6 +54,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Insight',
     items: [
+      { to: '/cycle', label: 'Cycle progress', icon: Gauge },
       { to: '/reports', label: 'Reports', icon: BarChart3 },
       { to: '/cash-flow', label: 'Cash flow', icon: TrendingUp },
       { to: '/calendar', label: 'Calendar', icon: CalendarDays },

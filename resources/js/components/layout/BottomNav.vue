@@ -23,7 +23,7 @@ const items = [
 
 /** Pages that are only reachable through More, so the tab reads as active. */
 const MORE_PATHS = [
-  '/plan', '/expenses', '/income', '/savings',
+  '/plan', '/expenses', '/income', '/savings', '/cycle',
   '/reports', '/cash-flow', '/calendar', '/settings',
 ]
 

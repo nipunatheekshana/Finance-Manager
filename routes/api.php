@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashFlowController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\CycleProgressController;
 use App\Http\Controllers\Api\DebtController;
 use App\Http\Controllers\Api\DebtPaymentController;
 use App\Http\Controllers\Api\ExpenseController;
@@ -163,6 +164,10 @@ Route::middleware('auth:sanctum')->group(function () {
     | Insight
     */
     Route::get('cash-flow', [CashFlowController::class, 'show']);
+
+    // One board for the whole cycle: what was planned against what has
+    // actually happened, entity by entity.
+    Route::get('cycle-progress', [CycleProgressController::class, 'show']);
     Route::get('calendar', [CashFlowController::class, 'calendar']);
     Route::get('financial-health', [FinancialHealthController::class, 'show']);
     Route::post('affordability-check', [AffordabilityController::class, 'check']);

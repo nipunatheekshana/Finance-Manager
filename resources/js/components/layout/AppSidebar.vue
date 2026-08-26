@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, CreditCard, Download, Home, LogOut,
+  Banknote, BarChart3, CalendarDays, CreditCard, Download, Gauge, Home, LogOut,
   PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -22,6 +22,7 @@ const items = [
   { to: '/income', label: 'Income', icon: Banknote },
   { to: '/debts', label: 'Debts', icon: CreditCard },
   { to: '/savings', label: 'Savings', icon: PiggyBank },
+  { to: '/cycle', label: 'Cycle progress', icon: Gauge },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/cash-flow', label: 'Cash flow', icon: TrendingUp },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },

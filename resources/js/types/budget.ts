@@ -310,3 +310,115 @@ export interface BudgetAdjustment {
   reason: string | null
   created_at: string | null
 }
+
+/** One line of a cycle-progress section: planned against what happened. */
+export type ProgressStatus = 'done' | 'partial' | 'pending'
+
+export interface CycleProgressSection {
+  planned: Money
+  settled: Money
+  outstanding: Money
+  count: number
+  settled_count: number
+  percentage: number
+  status: ProgressStatus
+}
+
+export interface ProgressBill {
+  id: number
+  name: string
+  amount: Money
+  planned_amount: Money
+  due_date: string | null
+  paid_at: string | null
+  status: 'planned' | 'paid' | 'skipped' | 'postponed'
+  /** Skipped and postponed bills are out of this cycle's total. */
+  counts: boolean
+}
+
+export interface ProgressDebt {
+  id: number
+  debt_id: number
+  name: string
+  planned: Money
+  paid: Money
+  outstanding: Money
+  balance: Money
+  due_day: number | null
+  percentage: number
+  status: ProgressStatus
+}
+
+export interface ProgressSaving {
+  id: number
+  savings_goal_id: number
+  name: string
+  planned: Money
+  saved: Money
+  outstanding: Money
+  goal_balance: Money
+  percentage: number
+  status: ProgressStatus
+}
+
+export interface CycleProgress {
+  plan: {
+    id: number
+    label: string
+    status: string
+    cycle_start: string
+    cycle_end: string
+    days_total: number
+    days_elapsed: number
+    days_remaining: number
+    elapsed_percentage: number
+    is_current: boolean
+  }
+  overall: {
+    committed: Money
+    settled: Money
+    outstanding: Money
+    percentage: number
+    on_track: boolean
+  }
+  income: {
+    expected: Money
+    received: Money
+    extra: Money
+    opening_balance: Money
+    total: Money
+    shortfall: Money
+    is_recorded: boolean
+    percentage: number
+    status: ProgressStatus
+  }
+  bills: CycleProgressSection & { items: ProgressBill[] }
+  allowances: {
+    items: AllowanceSummary[]
+    allocated: Money
+    spent: Money
+    remaining: Money
+    percentage: number
+    over_count: number
+    ahead_of_pace_count: number
+  }
+  debts: CycleProgressSection & { items: ProgressDebt[] }
+  savings: CycleProgressSection & { items: ProgressSaving[] }
+  spending: {
+    budget: Money
+    spent: Money
+    remaining: Money
+    percentage: number
+    status: BudgetStatus
+    over_by: Money
+    weeks: WeeklySummary[]
+    weeks_over: number
+  }
+  buffer: {
+    total: Money
+    used: Money
+    remaining: Money
+    percentage: number
+    is_intact: boolean
+  }
+}
