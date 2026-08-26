@@ -318,13 +318,30 @@ class FinancialPlanService
         $actual = Money::of($actualIncome);
         $extra = Money::floorAtZero(Money::sub($actual, $plan->expected_income));
 
+        // Salary day is not a one-shot: a typo gets corrected, and the figure
+        // is often re-entered once the transfer lands. Only the difference
+        // from what was already split may be distributed, or the same extra
+        // lands in the debt and savings allocations twice.
+        $alreadyApplied = Money::of($plan->extra_income_applied);
+
         $plan->forceFill([
             'actual_income' => $actual,
             'extra_income' => $extra,
         ])->save();
 
-        if ($applySplit && Money::isPositive($extra)) {
-            $this->applyExtraIncomeSplit($plan->fresh(), $profile, $extra);
+        if ($applySplit) {
+            $difference = Money::sub($extra, $alreadyApplied);
+
+            if (Money::isPositive($difference)) {
+                $this->applyExtraIncomeSplit($plan->fresh(), $profile, $difference);
+            } elseif (Money::isNegative($difference)) {
+                // The salary was revised down: take the surplus back out
+                // again, or the plan stays allocated against money that never
+                // arrived.
+                $this->withdrawExtraIncomeSplit($plan->fresh(), $profile, Money::abs($difference));
+            }
+
+            $plan->forceFill(['extra_income_applied' => $extra])->save();
         }
 
         return $this->recalculate($plan->fresh());
@@ -347,6 +364,90 @@ class FinancialPlanService
 
         if (Money::isPositive($toSavings)) {
             $this->distributeToSavings($plan, $toSavings);
+        }
+    }
+
+    /**
+     * Undo a split, in the reverse order it was made: the last money in is the
+     * first money out.
+     *
+     * The percentages are read as they stand now. If they were changed between
+     * the two entries the reversal is approximate, which is still far closer
+     * than leaving the plan allocated against income that never arrived.
+     */
+    public function withdrawExtraIncomeSplit(MonthlyPlan $plan, FinancialProfile $profile, string $amount): void
+    {
+        $fromDebt = Money::percentOf($amount, (string) $profile->extra_debt_percentage);
+        $fromSavings = Money::percentOf($amount, (string) $profile->extra_savings_percentage);
+
+        if (Money::isPositive($fromDebt)) {
+            $this->withdrawFromDebts($plan, $fromDebt);
+        }
+
+        if (Money::isPositive($fromSavings)) {
+            $this->withdrawFromSavings($plan, $fromSavings);
+        }
+    }
+
+    /** Lowest-interest debt first: the mirror of how the money went in. */
+    private function withdrawFromDebts(MonthlyPlan $plan, string $amount): void
+    {
+        $allocations = $plan->debtAllocations()
+            ->with('debt')
+            ->get()
+            ->sortBy(fn (PlanDebtAllocation $a) => (float) ($a->debt->interest_rate ?? 0));
+
+        $left = $amount;
+
+        foreach ($allocations as $allocation) {
+            if (! Money::isPositive($left)) {
+                break;
+            }
+
+            // Never below what has already been paid this cycle: that money
+            // is gone, and the plan has to keep showing it.
+            $removable = Money::floorAtZero(
+                Money::sub($allocation->planned_amount, $allocation->paid_amount)
+            );
+            $take = Money::min($left, $removable);
+
+            if (Money::isPositive($take)) {
+                $allocation->forceFill([
+                    'planned_amount' => Money::sub($allocation->planned_amount, $take),
+                ])->save();
+
+                $left = Money::sub($left, $take);
+            }
+        }
+    }
+
+    /** Lowest priority first: again the mirror of the distribution. */
+    private function withdrawFromSavings(MonthlyPlan $plan, string $amount): void
+    {
+        $allocations = $plan->savingsAllocations()
+            ->with('savingsGoal')
+            ->get()
+            ->sortByDesc(fn (PlanSavingsAllocation $a) => $a->savingsGoal->priority);
+
+        $left = $amount;
+
+        foreach ($allocations as $allocation) {
+            if (! Money::isPositive($left)) {
+                break;
+            }
+
+            $removable = Money::floorAtZero(
+                Money::sub($allocation->planned_amount, $allocation->saved_amount)
+            );
+            $take = Money::min($left, $removable);
+
+            if (Money::isPositive($take)) {
+                $allocation->forceFill([
+                    'planned_amount' => Money::sub($allocation->planned_amount, $take),
+                ])->save();
+
+                $left = Money::sub($left, $take);
+            }
         }
     }
 

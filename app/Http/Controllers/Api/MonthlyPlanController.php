@@ -117,13 +117,19 @@ class MonthlyPlanController extends Controller
             $request->boolean('apply_extra_split', true),
         );
 
-        $plan->incomeTransactions()->create([
-            'user_id' => $plan->user_id,
-            'amount' => Money::of($request->validated()['actual_income']),
-            'received_date' => $request->input('received_date', CarbonImmutable::today()->toDateString()),
-            'type' => 'base',
-            'description' => 'Salary for '.$plan->label(),
-        ]);
+        // Update the row this step wrote last time rather than adding another:
+        // re-entering the salary is a correction, not a second pay cheque.
+        $plan->incomeTransactions()->updateOrCreate(
+            [
+                'type' => 'base',
+                'description' => 'Salary for '.$plan->label(),
+            ],
+            [
+                'user_id' => $plan->user_id,
+                'amount' => Money::of($request->validated()['actual_income']),
+                'received_date' => $request->input('received_date', CarbonImmutable::today()->toDateString()),
+            ],
+        );
 
         return $this->planResponse($plan);
     }

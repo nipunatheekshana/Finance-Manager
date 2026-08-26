@@ -185,6 +185,23 @@ Turn a category budget into an allowance with one toggle in Settings →
 Categories; adjust the amounts for a single cycle in the planner's Allowances
 step without touching the standing default.
 
+### Recording the salary twice is a correction, not a second pay cheque
+
+Salary day gets re-entered: a typo is fixed, or the figure is saved again once
+the transfer actually lands. Both halves of that step are therefore
+idempotent — the plan's salary row is *updated* rather than added to, and only
+the **difference** in extra income is split across debts and savings. Revise
+the figure downward and the split is taken back out, in the reverse order it
+went in, never below what has already been paid or saved.
+
+`extra_income_applied` on the plan is what makes the second part possible: it
+records how much extra has actually been distributed, which `extra_income`
+alone cannot say.
+
+Accounts that recorded a salary twice before this have inflated income
+ledgers. `php artisan finance:dedupe-salaries` reports them and removes them
+with `--force`, keeping the most recent figure.
+
 ### Nothing moves without the user
 
 When a week is overspent the app presents the options — reduce next week, use
@@ -447,7 +464,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 291 tests
+php artisan test           # 297 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
