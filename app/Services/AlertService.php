@@ -48,22 +48,40 @@ class AlertService
             return null;
         }
 
-        return FinancialAlert::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'type' => $type->value,
-                'reference' => $reference,
-                'triggered_on' => ($on ?? CarbonImmutable::today())->toDateString(),
-            ],
-            [
-                'severity' => $severity->value,
-                'title' => $title,
-                'message' => $message,
-                'data' => $data,
-                'action_label' => $actionLabel,
-                'action_route' => $actionRoute,
-            ]
-        );
+        $day = ($on ?? CarbonImmutable::today())->toDateString();
+
+        $values = [
+            'severity' => $severity->value,
+            'title' => $title,
+            'message' => $message,
+            'data' => $data,
+            'action_label' => $actionLabel,
+            'action_route' => $actionRoute,
+        ];
+
+        // whereDate() rather than updateOrCreate(): the date cast means the
+        // stored value is not always the bare "Y-m-d" the lookup would compare
+        // against, and a miss here turns into a unique-constraint violation
+        // instead of an update.
+        $existing = FinancialAlert::query()
+            ->where('user_id', $user->id)
+            ->where('type', $type->value)
+            ->where('reference', $reference)
+            ->whereDate('triggered_on', $day)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->fill($values)->save();
+
+            return $existing;
+        }
+
+        return FinancialAlert::create($values + [
+            'user_id' => $user->id,
+            'type' => $type->value,
+            'reference' => $reference,
+            'triggered_on' => $day,
+        ]);
     }
 
     /**
@@ -124,7 +142,15 @@ class AlertService
         return FinancialAlert::query()
             ->where('user_id', $user->id)
             ->visible()
-            ->orderByRaw("FIELD(severity, 'critical', 'warning', 'success', 'info')")
+            // A CASE ranking rather than MySQL's FIELD(), which does not exist
+            // on other engines and took the dashboard down with it.
+            ->orderByRaw(
+                'CASE severity'
+                ." WHEN 'critical' THEN 1"
+                ." WHEN 'warning' THEN 2"
+                ." WHEN 'success' THEN 3"
+                .' ELSE 4 END'
+            )
             ->orderByDesc('triggered_on')
             ->orderByDesc('id')
             ->limit($limit)

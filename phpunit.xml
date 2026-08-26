@@ -24,9 +24,8 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <!-- Tests run against MySQL, not SQLite: the reporting queries use
-             MySQL functions (DATE_FORMAT, FIELD) and the schema relies on
-             MySQL index and foreign-key behaviour. -->
+        <!-- MySQL, the same engine production runs. Testing against a
+             different one is what let broken reporting SQL reach the site. -->
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="finance_manager_test"/>
         <env name="DB_HOST" value="127.0.0.1"/>

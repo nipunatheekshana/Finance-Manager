@@ -68,11 +68,7 @@ class ReportService
      */
     public function spendingTrend(User $user, string $view, CarbonImmutable $start, CarbonImmutable $end): array
     {
-        $expression = match ($view) {
-            'daily' => "DATE_FORMAT(expense_date, '%Y-%m-%d')",
-            'weekly' => "DATE_FORMAT(expense_date, '%x-W%v')",
-            default => "DATE_FORMAT(expense_date, '%Y-%m')",
-        };
+        $expression = $this->dateBucketExpression($view);
 
         $rows = Expense::query()
             ->where('user_id', $user->id)
@@ -377,6 +373,21 @@ class ReportService
         );
 
         return Money::sub($paid, $charged);
+    }
+
+    /**
+     * Group expenses by day, ISO week or month.
+     *
+     * DATE_FORMAT is MySQL-specific, which is deliberate: the app targets
+     * MySQL and is tested against it. Anything else would need this rewritten.
+     */
+    private function dateBucketExpression(string $view): string
+    {
+        return match ($view) {
+            'daily' => "DATE_FORMAT(expense_date, '%Y-%m-%d')",
+            'weekly' => "DATE_FORMAT(expense_date, '%x-W%v')",
+            default => "DATE_FORMAT(expense_date, '%Y-%m')",
+        };
     }
 
     private function prettyBucket(string $bucket, string $view): string

@@ -40,15 +40,51 @@ if [ ! -f .env ]; then
   echo "Created .env from deploy/env.production"
 fi
 
-# --- SQLite database file (lives in storage/, survives deploys) ---------------
-DB_FILE="$APP_DIR/storage/database.sqlite"
-if [ ! -f "$DB_FILE" ]; then
-  touch "$DB_FILE"
-  echo "Created SQLite database at $DB_FILE"
+# --- Database credentials -----------------------------------------------------
+#
+# Written on every deploy, not just the first, so a change of database actually
+# reaches a server that already has a .env. Credentials come from GitHub Actions
+# secrets and are never committed to the repository.
+#
+# Rewriting a key rather than editing in place keeps values with commas, quotes
+# or slashes safe, which sed substitution would not.
+set_env() {
+  local key="$1" value="$2"
+
+  grep -v -E "^${key}=" .env > .env.deploy-tmp || true
+  printf '%s="%s"\n' "$key" "$value" >> .env.deploy-tmp
+  mv .env.deploy-tmp .env
+}
+
+# Credentials arrive base64-encoded so they survive the SSH command line
+# intact, whatever characters they contain.
+decode() { [ -n "${1:-}" ] && printf '%s' "$1" | base64 -d || printf ''; }
+
+DB_HOST="$(decode "${DB_HOST_B64:-}")"
+DB_DATABASE="$(decode "${DB_DATABASE_B64:-}")"
+DB_USERNAME="$(decode "${DB_USERNAME_B64:-}")"
+DB_PASSWORD="$(decode "${DB_PASSWORD_B64:-}")"
+
+if [ -n "${DB_DATABASE:-}" ]; then
+  set_env DB_CONNECTION "${DB_CONNECTION:-mysql}"
+  set_env DB_HOST "${DB_HOST:-localhost}"
+  set_env DB_PORT "${DB_PORT:-3306}"
+  set_env DB_DATABASE "$DB_DATABASE"
+  set_env DB_USERNAME "${DB_USERNAME:-}"
+  set_env DB_PASSWORD "${DB_PASSWORD:-}"
+
+  # A SQLite deployment used to set this; it is meaningless for MySQL and
+  # confusing to leave behind.
+  grep -v -E '^DB_FOREIGN_KEYS=' .env > .env.deploy-tmp || true
+  mv .env.deploy-tmp .env
+
+  echo "Database configured: ${DB_CONNECTION:-mysql} -> $DB_DATABASE"
+else
+  echo "No DB_DATABASE provided; leaving the existing .env database settings alone."
 fi
 
 # --- Generate APP_KEY on the server, only once --------------------------------
-if grep -qE '^APP_KEY=[[:space:]]*$' .env; then
+if grep -qE '^APP_KEY=[[:space:]]*"?[[:space:]]*"?$' .env; then
   "$PHP_BIN" artisan key:generate --force
 fi
 
@@ -65,8 +101,20 @@ fi
 # --- Laravel housekeeping ------------------------------------------------------
 [ -e public/storage ] || ln -s "$APP_DIR/storage/app/public" "$APP_DIR/public/storage"
 
-"$PHP_BIN" artisan migrate --force
+# Clear first: a cached config from the previous deploy would otherwise still
+# point at the old database and every command below would use it.
 "$PHP_BIN" artisan config:clear
+"$PHP_BIN" artisan cache:clear || true
+
+# Fail loudly here rather than serving 500s to users.
+if ! "$PHP_BIN" artisan db:show --json >/dev/null 2>&1; then
+  echo "ERROR: cannot connect to the database with the configured credentials" >&2
+  "$PHP_BIN" artisan db:show || true
+  exit 1
+fi
+
+"$PHP_BIN" artisan migrate --force
+
 "$PHP_BIN" artisan config:cache
 "$PHP_BIN" artisan view:cache
 "$PHP_BIN" artisan route:cache || echo "route:cache skipped (uncacheable routes)"

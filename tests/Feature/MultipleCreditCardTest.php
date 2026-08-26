@@ -36,7 +36,9 @@ class MultipleCreditCardTest extends TestCase
             ->pluck('debt_id', 'name')
             ->all();
 
-        $this->assertSame(
+        // Compared by content, not order: row order without an ORDER BY is up
+        // to the database engine.
+        $this->assertEquals(
             ['HSBC Visa' => $visa->id, 'Amex Gold' => $amex->id, 'Store Card' => $store->id],
             $links,
         );
