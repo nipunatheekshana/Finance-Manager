@@ -300,10 +300,13 @@ async function reopen(): Promise<void> {
     <div v-else-if="plan && summary" class="space-y-5">
       <!-- Step rail -->
       <ol class="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Planning steps">
-        <li v-for="(label, index) in STEPS" :key="label">
+        <!-- shrink-0 belongs on the flex item: on the button it let the rail
+             squeeze the pills, so "Fixed expenses" wrapped onto two lines and
+             stood taller than the rest. -->
+        <li v-for="(label, index) in STEPS" :key="label" class="shrink-0">
           <button
             type="button"
-            class="flex min-h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 py-1.5 text-sm font-semibold transition"
+            class="flex h-11 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-pill)] px-3.5 text-sm font-semibold transition"
             :class="
               index === step
                 ? 'bg-brand text-on-brand'
