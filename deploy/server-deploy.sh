@@ -63,7 +63,7 @@ if [ ! -L "$WEB_ROOT" ]; then
 fi
 
 # --- Laravel housekeeping ------------------------------------------------------
-[ -e public/storage ] || "$PHP_BIN" artisan storage:link
+[ -e public/storage ] || ln -s "$APP_DIR/storage/app/public" "$APP_DIR/public/storage"
 
 "$PHP_BIN" artisan migrate --force
 "$PHP_BIN" artisan config:clear
