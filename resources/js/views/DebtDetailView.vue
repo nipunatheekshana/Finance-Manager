@@ -96,7 +96,16 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+
+  // Arriving from "still to pay" with ?pay=1: open the payment straight away,
+  // then drop the flag so a refresh does not reopen it.
+  if (route.query.pay !== undefined && debt.value) {
+    paying.value = true
+    void router.replace({ query: {} })
+  }
+})
 </script>
 
 <template>

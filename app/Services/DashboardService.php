@@ -53,6 +53,7 @@ class DashboardService
                 'savings' => $this->savingsSection($user, null),
                 'recent_expenses' => $this->recentExpenses($user),
                 'upcoming_bills' => ['items' => [], 'total' => '0.00'],
+                'upcoming_debt_payments' => ['items' => [], 'total' => '0.00'],
                 'alerts' => $this->alerts->visibleFor($user, 6),
                 'empty_message' => 'Set up a monthly plan to see your budgets here.',
             ];
@@ -85,6 +86,7 @@ class DashboardService
             'savings' => $this->savingsSection($user, $plan),
             'recent_expenses' => $this->recentExpenses($user),
             'upcoming_bills' => $this->cashFlow->upcomingBills($plan, $today),
+            'upcoming_debt_payments' => $this->cashFlow->upcomingDebtPayments($plan),
             'alerts' => $this->alerts->visibleFor($user, 6),
         ];
     }

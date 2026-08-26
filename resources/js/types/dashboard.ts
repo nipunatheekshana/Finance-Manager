@@ -136,6 +136,19 @@ export interface UpcomingBill {
   category_id: number | null
 }
 
+/** A debt instalment planned for this cycle and not yet fully paid. */
+export interface UpcomingDebtPayment {
+  id: number
+  kind: string
+  debt_id: number
+  name: string
+  /** Still outstanding, not the full planned amount. */
+  amount: Money
+  planned: Money
+  paid: Money
+  date: string | null
+}
+
 export interface Dashboard {
   today: string
   has_plan: boolean
@@ -157,6 +170,7 @@ export interface Dashboard {
   savings: DashboardSavings
   recent_expenses: DashboardExpense[]
   upcoming_bills: { items: UpcomingBill[]; total: Money }
+  upcoming_debt_payments: { items: UpcomingDebtPayment[]; total: Money }
   alerts: FinancialAlert[]
   empty_message?: string
 }
@@ -223,7 +237,7 @@ export interface CashFlowForecast {
   spending_budget: Money
   spent_so_far: Money
   upcoming_bills: { items: UpcomingBill[]; total: Money }
-  upcoming_debt_payments: { items: Array<Record<string, unknown>>; total: Money }
+  upcoming_debt_payments: { items: UpcomingDebtPayment[]; total: Money }
   planned_savings: { items: Array<Record<string, unknown>>; total: Money }
   total_committed: Money
   buffer_remaining: Money

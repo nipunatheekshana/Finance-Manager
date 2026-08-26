@@ -9,6 +9,7 @@ import SectionHeader from '@/components/common/SectionHeader.vue'
 import BillPaymentSheet from '@/components/budgets/BillPaymentSheet.vue'
 import { api } from '@/services/api'
 import { formatDate, formatDateRange, relativeDay } from '@/composables/useDates'
+import { amountToNumber } from '@/composables/useCurrency'
 import type { CashFlowForecast, UpcomingBill } from '@/types'
 
 const forecast = ref<CashFlowForecast | null>(null)
@@ -183,6 +184,34 @@ onMounted(load)
                 <span class="badge bg-brand-soft text-brand">Pay</span>
               </span>
             </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Computed for this screen from the start, but never shown until now:
+           an instalment is as much "still to pay" as a bill is. -->
+      <section v-if="forecast.upcoming_debt_payments.items.length">
+        <SectionHeader title="Debt payments still to make" />
+        <ul class="card divide-y divide-line px-4">
+          <li v-for="row in forecast.upcoming_debt_payments.items" :key="row.id">
+            <RouterLink
+              :to="`/debts/${row.debt_id}?pay=1`"
+              class="-mx-4 flex w-[calc(100%+2rem)] items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-sunken"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-ink">{{ row.name }}</p>
+                <p class="text-xs text-ink-subtle">
+                  {{ row.date ? relativeDay(row.date) : 'This cycle' }}
+                  <template v-if="amountToNumber(row.paid) > 0">
+                    · <MoneyText :amount="row.paid" size="xs" /> paid so far
+                  </template>
+                </p>
+              </div>
+              <span class="flex shrink-0 items-center gap-2">
+                <MoneyText :amount="row.amount" size="sm" class="font-semibold" />
+                <span class="badge bg-brand-soft text-brand">Pay</span>
+              </span>
+            </RouterLink>
           </li>
         </ul>
       </section>

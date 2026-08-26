@@ -22,6 +22,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useBudgetStore } from '@/stores/budget'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
+import { RouterLink } from 'vue-router'
 import { relativeDay } from '@/composables/useDates'
 import type { UpcomingBill } from '@/types'
 
@@ -32,6 +33,39 @@ const auth = useAuthStore()
 
 const surplusPlanId = ref<number | null>(null)
 const payingBill = ref<UpcomingBill | null>(null)
+
+/**
+ * Bills and debt instalments are both "still to pay"; splitting them across
+ * two screens only hid the instalments, which have their own due days.
+ */
+const stillToPay = computed(() => {
+  const data = dashboard.data
+  if (!data) return []
+
+  const rows = [
+    ...data.upcoming_bills.items.map((bill) => ({
+      key: `bill-${bill.id}`,
+      name: bill.name,
+      amount: bill.amount,
+      date: bill.date,
+      is_overdue: bill.is_overdue,
+      bill,
+      debtId: null as number | null,
+    })),
+    ...data.upcoming_debt_payments.items.map((row) => ({
+      key: `debt-${row.id}`,
+      name: row.name,
+      amount: row.amount,
+      date: row.date,
+      is_overdue: false,
+      bill: null as UpcomingBill | null,
+      debtId: row.debt_id,
+    })),
+  ]
+
+  // Undated commitments sort last: they are due some time this cycle.
+  return rows.sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'))
+})
 
 const data = computed(() => dashboard.data)
 
@@ -223,28 +257,30 @@ onMounted(() => {
         </div>
       </section>
 
-      <section v-if="data.upcoming_bills.items.length">
+      <section v-if="stillToPay.length">
         <SectionHeader title="Still to pay this cycle" action-label="Cash flow" action-to="/cash-flow" />
         <ul class="card divide-y divide-line">
-          <li v-for="bill in data.upcoming_bills.items.slice(0, 4)" :key="bill.id">
-            <!-- Settling a bill is a live-cycle action, so it belongs here
-                 rather than back in the planner. -->
-            <button
-              type="button"
+          <li v-for="row in stillToPay.slice(0, 5)" :key="row.key">
+            <!-- Paying is a live-cycle action, so it belongs here rather than
+                 back in the planner. A debt opens its own payment screen,
+                 which knows the balance and the payoff maths. -->
+            <component
+              :is="row.bill ? 'button' : RouterLink"
+              v-bind="row.bill ? { type: 'button' } : { to: `/debts/${row.debtId}?pay=1` }"
               class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-sunken"
-              @click="payingBill = bill"
+              @click="row.bill ? (payingBill = row.bill) : undefined"
             >
               <div class="min-w-0">
-                <p class="truncate text-sm font-medium text-ink">{{ bill.name }}</p>
-                <p class="text-xs" :class="bill.is_overdue ? 'text-over' : 'text-ink-subtle'">
-                  {{ bill.is_overdue ? 'Overdue' : relativeDay(bill.date) }}
+                <p class="truncate text-sm font-medium text-ink">{{ row.name }}</p>
+                <p class="text-xs" :class="row.is_overdue ? 'text-over' : 'text-ink-subtle'">
+                  {{ row.is_overdue ? 'Overdue' : relativeDay(row.date) }}
                 </p>
               </div>
               <span class="flex shrink-0 items-center gap-2">
-                <MoneyText :amount="bill.amount" size="sm" class="font-semibold" />
+                <MoneyText :amount="row.amount" size="sm" class="font-semibold" />
                 <span class="badge bg-brand-soft text-brand">Pay</span>
               </span>
-            </button>
+            </component>
           </li>
         </ul>
       </section>

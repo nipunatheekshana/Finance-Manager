@@ -218,12 +218,24 @@ changes.
 A category limit that would be crossed is called out in the same panel, but it
 does not gate the save: category budgets warn, they never block (§27).
 
-### Bills can be settled early
+### Anything owed this cycle can be settled early
 
-A bill in "Still to pay this cycle" is payable from the dashboard and from the
-cash-flow screen: tap it, confirm the amount, and it leaves the list. Typing a
+"Still to pay this cycle" lists both kinds of commitment together — fixed bills
+and the debt instalments planned for the cycle — sorted by due date, because
+splitting them across two screens only hid the instalments.
+
+Tap a bill and it is payable in place: confirm the amount and it leaves the
+list. Typing a
 different figure records it as the actual amount while the plan keeps what was
 budgeted, so the two stay comparable.
+
+Tap a debt instalment and it opens that debt's payment screen with the
+payment already started (`/debts/{id}?pay=1`), because a card payment needs the
+real balance and the payoff maths beside it. The date defaults to today and the
+amount to what was planned, so paying the 15th's card bill on the 2nd is just a
+payment on the 2nd: `DebtPaymentService` credits it to whichever cycle contains
+the payment date, so the plan's allocation shows it as paid and the instalment
+drops off the list.
 
 Settling a bill is deliberately not treated as editing the plan. A paid bill
 was always counted in the plan's total, so recording it mid-cycle moves no
@@ -424,7 +436,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 284 tests
+php artisan test           # 287 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
