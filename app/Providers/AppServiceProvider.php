@@ -19,10 +19,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Catch missing eager loads and mass-assignment mistakes in development
-        // rather than shipping N+1 queries or silently ignored attributes.
-        Model::preventLazyLoading($this->app->isLocal());
-        Model::preventSilentlyDiscardingAttributes($this->app->isLocal());
+        // Catch missing eager loads and mass-assignment mistakes before they
+        // reach production. Enabled in tests as well as local development —
+        // gating on isLocal() alone meant the suite could not catch a lazy-load
+        // violation that would throw the moment the app was opened.
+        $strict = ! $this->app->isProduction();
+
+        Model::preventLazyLoading($strict);
+        Model::preventSilentlyDiscardingAttributes($strict);
 
         $this->configureRateLimiting();
         $this->configurePasswordReset();

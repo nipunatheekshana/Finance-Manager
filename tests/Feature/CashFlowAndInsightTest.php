@@ -176,6 +176,43 @@ class CashFlowAndInsightTest extends TestCase
         }
     }
 
+    /**
+     * Regression: the affordability check resolves the plan itself, so it
+     * arrives without debt or savings relations loaded. Reading them lazily
+     * threw the moment a user with debts opened the check.
+     */
+    #[Test]
+    public function the_affordability_check_works_on_a_plan_it_resolved_itself(): void
+    {
+        [$user] = $this->activePlan();
+
+        // Deliberately not pre-hydrated: exactly how the controller calls it.
+        $plan = app(FinancialPlanService::class)->activePlanFor($user);
+        $this->assertNotNull($plan);
+        $this->assertFalse($plan->relationLoaded('debtAllocations'));
+
+        $result = app(\App\Services\AffordabilityService::class)->check($user, '5000.00');
+
+        $this->assertArrayHasKey('verdict', $result);
+        $this->assertSame('100000.00', $result['factors']['upcoming_debt_payments']);
+    }
+
+    /**
+     * The same shape of bug, reached through the cash-flow screen.
+     */
+    #[Test]
+    public function the_cash_flow_forecast_works_on_a_plan_it_resolved_itself(): void
+    {
+        [$user] = $this->activePlan();
+
+        $plan = app(FinancialPlanService::class)->activePlanFor($user);
+        $forecast = app(CashFlowService::class)->forecast($plan);
+
+        $this->assertSame('100000.00', $forecast['upcoming_debt_payments']['total']);
+        $this->assertSame('15000.00', $forecast['planned_savings']['total']);
+        $this->assertNotEmpty($forecast['timeline']);
+    }
+
     #[Test]
     public function the_affordability_check_needs_a_positive_amount(): void
     {

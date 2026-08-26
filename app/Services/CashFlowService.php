@@ -45,6 +45,8 @@ class CashFlowService
     {
         $today = ($today ?? CarbonImmutable::today())->startOfDay();
 
+        $plan->loadMissing('fixedExpenses');
+
         $items = $plan->fixedExpenses
             ->filter(fn (PlanFixedExpense $row) => $row->status === 'planned')
             ->map(fn (PlanFixedExpense $row) => [
@@ -74,6 +76,11 @@ class CashFlowService
      */
     public function upcomingDebtPayments(MonthlyPlan $plan): array
     {
+        // Loaded here rather than relied on from the caller: this is read from
+        // the dashboard, the cash-flow screen and the affordability check, and
+        // each of those arrives with a differently hydrated plan.
+        $plan->loadMissing('debtAllocations.debt');
+
         $items = $plan->debtAllocations
             ->map(function ($allocation) use ($plan) {
                 $outstanding = Money::floorAtZero(
@@ -109,6 +116,8 @@ class CashFlowService
      */
     public function plannedSavings(MonthlyPlan $plan): array
     {
+        $plan->loadMissing('savingsAllocations.savingsGoal');
+
         $items = $plan->savingsAllocations
             ->map(function ($allocation) {
                 $outstanding = Money::floorAtZero(
@@ -199,6 +208,7 @@ class CashFlowService
         $events = [];
 
         // The salary that funds the next cycle, if it lands before this one ends.
+        $plan->loadMissing('user.financialProfile');
         $profile = $plan->user->financialProfile;
         if ($profile !== null) {
             $nextSalary = $this->cycles->cycleStartDate(

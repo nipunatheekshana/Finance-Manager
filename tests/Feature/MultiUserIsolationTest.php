@@ -44,7 +44,7 @@ class MultiUserIsolationTest extends TestCase
         $this->assertSame(3, User::count());
 
         // Each account gets its own profile, categories and payment methods.
-        foreach (User::all() as $user) {
+        foreach (User::with('financialProfile')->get() as $user) {
             $this->assertNotNull($user->financialProfile);
             $this->assertSame(12, $user->categories()->count());
             $this->assertSame(6, $user->paymentMethods()->count());
