@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Plus, Shapes } from 'lucide-vue-next'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
@@ -47,6 +47,9 @@ const form = reactive({
   is_allowance: false,
   warning_percentage: '80',
 })
+
+/** An allowance has to have an amount to reserve. */
+const hasBudget = computed(() => Number.parseFloat(form.monthly_budget) > 0)
 
 function open(category: Category | null): void {
   editing.value = category
@@ -200,10 +203,13 @@ onMounted(async () => {
           :error="errors.monthly_budget"
         />
 
-        <!-- The difference between a warning and money actually put aside. -->
+        <!-- The difference between a warning and money actually put aside.
+             This used to appear only once an amount had been typed, so the
+             feature was invisible to anyone who did not already know it
+             existed. -->
         <label
-          v-if="Number.parseFloat(form.monthly_budget) > 0"
-          class="flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-field)] bg-sunken p-3"
+          class="flex items-start justify-between gap-3 rounded-[var(--radius-field)] bg-sunken p-3"
+          :class="hasBudget ? 'cursor-pointer' : 'opacity-60'"
         >
           <span class="min-w-0">
             <span class="block text-sm font-medium text-ink">Set this money aside</span>
@@ -212,10 +218,14 @@ onMounted(async () => {
               for spending that adds up through the month, like fuel or groceries.
               It comes out of your income and stops competing with your daily budget.
             </span>
+            <span v-if="!hasBudget" class="mt-1 block text-xs font-medium text-ink-subtle">
+              Enter a monthly amount above to set money aside.
+            </span>
           </span>
           <input
             v-model="form.is_allowance"
             type="checkbox"
+            :disabled="!hasBudget"
             class="mt-0.5 h-5 w-5 shrink-0 rounded border-line accent-[rgb(var(--color-brand))]"
           />
         </label>

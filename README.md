@@ -182,8 +182,15 @@ what is left **per remaining day** and whether it is running ahead of an even
 pace. That is what the dashboard leads with.
 
 Turn a category budget into an allowance with one toggle in Settings →
-Categories; adjust the amounts for a single cycle in the planner's Allowances
-step without touching the standing default.
+Categories — the toggle needs a monthly amount, since an allowance has to have
+something to reserve. Adjust the amounts for a single cycle in the planner's
+**Allowances** step, without touching the standing default.
+
+Adding one to a cycle already under way means reopening the plan: a live plan
+goes back to draft so every step is editable, then you finalise again. The
+weekly budgets are re-cut on that second finalise, because the pool they divide
+has just shrunk — leaving them alone would keep handing out the old, larger
+figure every week.
 
 ### Recording the salary twice is a correction, not a second pay cheque
 
@@ -491,7 +498,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 305 tests
+php artisan test           # 308 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

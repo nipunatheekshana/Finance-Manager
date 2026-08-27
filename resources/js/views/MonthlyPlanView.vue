@@ -283,8 +283,16 @@ async function toggleDeficit(): Promise<void> {
 }
 
 async function reopen(): Promise<void> {
+  const wasActive = plan.value?.status === 'active'
+
   await budget.reopen('Corrections after finalising')
-  ui.info('Plan reopened', 'Changes you make are recorded in the audit trail.')
+
+  ui.info(
+    wasActive ? 'Plan back in draft' : 'Plan reopened',
+    wasActive
+      ? 'Every step is editable again. Finalise when you are done.'
+      : 'Changes you make are recorded in the audit trail.',
+  )
 }
 </script>
 
@@ -549,6 +557,17 @@ async function reopen(): Promise<void> {
           You have no categories yet. Add some from Settings first.
         </p>
 
+        <!-- Without this the inputs are simply dead, with no way out on
+             screen. -->
+        <p
+          v-if="isFinalized"
+          class="rounded-[var(--radius-card)] bg-sunken p-3 text-sm text-ink-muted"
+        >
+          This plan is active, so allowances are locked. Use
+          <span class="font-semibold text-ink">Reopen for corrections</span> at
+          the bottom of this page to change them, then finalise again.
+        </p>
+
         <div class="card flex items-center justify-between p-4">
           <span class="text-sm font-semibold text-ink">Set aside</span>
           <MoneyText :amount="allowanceTotal.toFixed(2)" size="lg" class="font-bold" />
@@ -796,7 +815,15 @@ async function reopen(): Promise<void> {
       <div v-if="isFinalized" class="card p-4">
         <p class="text-sm font-semibold text-ink">This plan is {{ plan.status }}</p>
         <p class="mt-1 text-sm text-ink-muted">
-          Reopen it to make corrections. The change is recorded in your audit trail.
+          <template v-if="plan.status === 'active'">
+            Reopening puts it back in draft so every step — including
+            allowances — can be changed. Finalise again when you are done.
+            Your spending, payments and history are kept.
+          </template>
+          <template v-else>
+            Reopen it to make corrections. The change is recorded in your audit
+            trail.
+          </template>
         </p>
         <button type="button" class="btn btn-secondary mt-3 w-full" @click="reopen">
           <RotateCcw class="h-4 w-4" aria-hidden="true" />

@@ -592,7 +592,14 @@ class FinancialPlanService
         }
 
         return DB::transaction(function () use ($plan) {
-            if ($plan->weeklyBudgets()->count() === 0) {
+            // Re-cut the weeks whenever the pool they divide has changed —
+            // reopening a plan to add an allowance shrinks the spending budget,
+            // and stale weeks would keep handing out the old, larger figure.
+            // updateOrCreate keeps each week's own overspend adjustment.
+            $weeklyTotal = Money::sum($plan->weeklyBudgets()->pluck('budget_amount'));
+
+            if ($plan->weeklyBudgets()->count() === 0
+                || Money::of($weeklyTotal) !== Money::floorAtZero($plan->spending_budget)) {
                 $this->applyWeeklyBudgets($plan);
             }
 
@@ -647,10 +654,22 @@ class FinancialPlanService
     }
 
     /** Reopen a finished month for corrections; the audit trail records who/when. */
+    /**
+     * Unlock a finalised plan.
+     *
+     * A live plan goes back to draft, because that is the only state the
+     * planner will let you edit — returning it to "active" left every step
+     * disabled and the button did nothing at all. A finished cycle instead
+     * comes back to life as the active plan.
+     */
     public function reopen(MonthlyPlan $plan): MonthlyPlan
     {
+        $target = $plan->status === PlanStatus::Active
+            ? PlanStatus::Draft
+            : PlanStatus::Active;
+
         $plan->forceFill([
-            'status' => PlanStatus::Active->value,
+            'status' => $target->value,
             'completed_at' => null,
             'reopened_at' => now(),
         ])->save();

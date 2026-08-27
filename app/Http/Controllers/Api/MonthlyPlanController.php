@@ -347,14 +347,15 @@ class MonthlyPlanController extends Controller
     {
         $this->authorize('update', $monthlyPlan);
 
+        $was = $monthlyPlan->status->value;
         $plan = $this->plans->reopen($monthlyPlan);
 
         $this->audit->record(
             $plan->user_id,
             'plan.reopened',
             $plan,
-            ['status' => 'completed'],
-            ['status' => 'active'],
+            ['status' => $was],
+            ['status' => $plan->status->value],
             $request->input('reason'),
         );
 
