@@ -7,6 +7,8 @@ use App\Enums\FundingMethod;
 use App\Enums\IncomeCadence;
 use App\Enums\IncomeMode;
 use App\Enums\IncomeSourceKind;
+use App\Enums\PlanStatus;
+use App\Models\MonthlyPlan;
 use App\Models\User;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -25,12 +27,16 @@ use Illuminate\Support\Facades\DB;
  *      Moving the boundaries under a live plan would invalidate the weekly
  *      budgets someone is currently spending against.
  *   3. Income sources are archived, never deleted, so history survives.
+ *   4. Figures the new setup does not use are cleared, and drafts are
+ *      re-derived. A leftover salary or draw would otherwise keep funding
+ *      plans with money the user has stopped counting on.
  */
 class IncomeModeService
 {
     public function __construct(
         private readonly BudgetCycleService $cycles,
         private readonly IncomeForecastService $income,
+        private readonly FinancialPlanService $plans,
     ) {}
 
     /**
@@ -114,12 +120,59 @@ class IncomeModeService
                 $profile->base_salary = '0.00';
             }
 
+            // Nor should a funding method that pays no draw. Budgeting "only
+            // what has actually arrived" while a 5,000 draw sits in the
+            // profile means every new plan still expects 5,000 that nobody
+            // agreed to. An amount given explicitly always wins.
+            if (! $profile->funding_method->usesHoldingPot()
+                && ! array_key_exists('target_draw', $settings)) {
+                $profile->target_draw = '0.00';
+            }
+
             $profile->save();
 
             $this->syncIncomeSources($user, $mode);
 
+            // Drafts are still being written, so they follow the new setup.
+            // Live and finished cycles keep the figure they were built on.
+            $this->refreshDraftPlans($user->fresh());
+
             return $preview + ['applied' => true];
         });
+    }
+
+    /**
+     * Re-derive the expected income of any draft plan.
+     *
+     * A draft is not yet a commitment to anything, so leaving it quoting the
+     * old funding method just shows the user a figure they have replaced.
+     */
+    private function refreshDraftPlans(User $user): void
+    {
+        $profile = $user->financialProfile;
+
+        $drafts = $user->monthlyPlans()
+            ->where('status', PlanStatus::Draft->value)
+            ->get();
+
+        foreach ($drafts as $plan) {
+            $expected = Money::of(
+                $this->income->expectedIncomeFor($user, $plan->year, $plan->month, $profile)
+            );
+
+            if ($expected === Money::of($plan->expected_income)) {
+                continue;
+            }
+
+            $plan->forceFill(['expected_income' => $expected])->save();
+
+            // Recording the income again re-derives the extra and adjusts the
+            // debt and savings split by the difference, rather than layering
+            // another one on top.
+            $plan->actual_income === null
+                ? $this->plans->recalculate($plan->fresh())
+                : $this->plans->recordActualIncome($plan->fresh(), $plan->actual_income);
+        }
     }
 
     /**

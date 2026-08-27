@@ -498,7 +498,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 308 tests
+php artisan test           # 316 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
