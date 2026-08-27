@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, CreditCard, Download, Gauge, Home, LogOut,
-  PiggyBank, Receipt, Settings, TrendingUp, Wallet,
+  Banknote, BarChart3, CalendarDays, CreditCard, Download, Gauge, Home,
+  ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -18,6 +18,7 @@ const { canInstall } = useInstallPrompt()
 const items = [
   { to: '/', label: 'Dashboard', icon: Home, exact: true },
   { to: '/budget', label: 'Budget', icon: Wallet },
+  { to: '/plan', label: 'Monthly plan', icon: ListChecks },
   { to: '/expenses', label: 'Expenses', icon: Receipt },
   { to: '/income', label: 'Income', icon: Banknote },
   { to: '/debts', label: 'Debts', icon: CreditCard },

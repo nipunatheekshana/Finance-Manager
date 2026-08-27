@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertTriangle, CalendarRange, Wallet } from 'lucide-vue-next'
+import { AlertTriangle, CalendarRange, PiggyBank, Wallet } from 'lucide-vue-next'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import BudgetProgress from '@/components/common/BudgetProgress.vue'
@@ -195,16 +195,28 @@ async function afterAdjustment(): Promise<void> {
       </section>
 
       <!-- Allowances -->
-      <section v-if="allowances.length">
+      <section>
         <SectionHeader
           title="Allowances"
           subtitle="Reserved out of your income and drawn down as you spend"
-          action-label="Adjust"
-          action-to="/plan"
+          :action-label="allowances.length ? 'Adjust' : undefined"
+          :action-to="allowances.length ? '/plan' : undefined"
         />
-        <div class="card p-4">
+
+        <div v-if="allowances.length" class="card p-4">
           <AllowanceList :allowances="allowances" />
         </div>
+
+        <!-- The link to set one up used to live behind "v-if allowances" —
+             visible only once you already had what it was for. -->
+        <EmptyState
+          v-else
+          :icon="PiggyBank"
+          title="Nothing set aside yet"
+          description="Fuel, groceries, eating out: money that adds up through the cycle. Reserve an amount and it stops competing with your daily budget."
+          action-label="Set up allowances"
+          @action="$router.push('/plan')"
+        />
       </section>
 
       <!-- Category budgets -->

@@ -76,9 +76,10 @@ class MobileNavigationTest extends TestCase
     {
         $sidebar = file_get_contents($this->root('resources/js/components/layout/AppSidebar.vue'));
 
-        // The planner is opened from the Budget screen on desktop; the sidebar
-        // deliberately leaves it out.
-        foreach (array_diff($this->shellRoutePaths(), ['/plan']) as $path) {
+        // No exemptions: an account with an active plan and no allowances had
+        // no link to the planner anywhere on desktop, because every route to
+        // it was conditional on something that account did not have.
+        foreach ($this->shellRoutePaths() as $path) {
             $this->assertStringContainsString("to: '{$path}'", $sidebar);
         }
     }
