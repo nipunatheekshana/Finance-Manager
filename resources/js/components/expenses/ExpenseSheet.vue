@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AlertTriangle, CreditCard, Info, Trash2 } from 'lucide-vue-next'
+import { AlertTriangle, CreditCard, Info, PiggyBank, Trash2 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import CategorySelector from '@/components/common/CategorySelector.vue'
@@ -14,7 +14,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useBudgetStore } from '@/stores/budget'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
-import { formatLKR } from '@/composables/useCurrency'
+import { amountToNumber, formatLKR } from '@/composables/useCurrency'
 import { todayIso } from '@/composables/useDates'
 import type { ExpenseDraft, ExpenseImpact, WeekStateAfterSave } from '@/types'
 
@@ -107,6 +107,19 @@ watch([amount, categoryId, expenseDate], () => {
   acknowledgedOverspend.value = false
   refreshImpact()
 })
+
+/**
+ * Reserved money paying for the thing it was reserved for. Warning about the
+ * weekly budget here would be telling the user off for following their plan.
+ */
+const paidByAllowance = computed(
+  () => impact.value?.allowance != null && amountToNumber(impact.value.allowance.from_day_to_day) === 0,
+)
+
+const partlyPaidByAllowance = computed(
+  () => impact.value?.allowance != null && amountToNumber(impact.value.allowance.covered) > 0
+    && amountToNumber(impact.value.allowance.from_day_to_day) > 0,
+)
 
 /** The week would go over, and the user has not acknowledged that yet. */
 const needsAcknowledgement = computed(
@@ -248,21 +261,31 @@ async function confirmDelete(): Promise<void> {
           :class="
             impact.will_exceed_week || impact.already_over_week
               ? 'bg-over-soft'
-              : impact.week.status_after === 'warning'
-                ? 'bg-warn-soft'
-                : 'bg-sunken'
+              : paidByAllowance
+                ? 'bg-brand-soft'
+                : impact.week.status_after === 'warning'
+                  ? 'bg-warn-soft'
+                  : 'bg-sunken'
           "
         >
           <div class="flex items-start gap-2.5">
             <component
-              :is="impact.will_exceed_week || impact.already_over_week ? AlertTriangle : Info"
+              :is="
+                impact.will_exceed_week || impact.already_over_week
+                  ? AlertTriangle
+                  : paidByAllowance
+                    ? PiggyBank
+                    : Info
+              "
               class="mt-0.5 h-4 w-4 shrink-0"
               :class="
                 impact.will_exceed_week || impact.already_over_week
                   ? 'text-over'
-                  : impact.week.status_after === 'warning'
-                    ? 'text-warn'
-                    : 'text-ink-subtle'
+                  : paidByAllowance
+                    ? 'text-brand'
+                    : impact.week.status_after === 'warning'
+                      ? 'text-warn'
+                      : 'text-ink-subtle'
               "
               aria-hidden="true"
             />
@@ -275,7 +298,18 @@ async function confirmDelete(): Promise<void> {
                 {{ impact.headline }}
               </p>
 
-              <p v-if="!impact.will_exceed_week && impact.week.days_remaining" class="mt-0.5 text-ink-muted">
+              <!-- Where the money actually comes from, when it is split. -->
+              <p v-if="partlyPaidByAllowance && impact.allowance" class="mt-0.5 text-ink-muted">
+                <MoneyText :amount="impact.allowance.covered" size="sm" class="font-semibold" />
+                from your {{ impact.allowance.name }} allowance, the last
+                <MoneyText :amount="impact.allowance.from_day_to_day" size="sm" class="font-semibold" />
+                from this week.
+              </p>
+
+              <p
+                v-if="!impact.will_exceed_week && !paidByAllowance && impact.week.days_remaining"
+                class="mt-0.5 text-ink-muted"
+              >
                 That is <MoneyText :amount="impact.week.daily_limit_after" size="sm" class="font-semibold" />
                 a day for the {{ impact.week.days_remaining }} remaining
                 {{ impact.week.days_remaining === 1 ? 'day' : 'days' }}.

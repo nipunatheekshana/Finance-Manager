@@ -80,6 +80,56 @@ class BudgetCalculationService
     }
 
     /**
+     * What is left of one category's allowance for the cycle.
+     *
+     * Returns null when the category is not an allowance in this plan, which
+     * is the signal that ordinary day-to-day rules apply.
+     *
+     * @return array{category_id: int, allocated: string, spent: string, remaining: string}|null
+     */
+    public function allowanceStateFor(
+        MonthlyPlan $plan,
+        ?int $categoryId,
+        string $exclude = '0.00',
+    ): ?array {
+        if ($categoryId === null) {
+            return null;
+        }
+
+        $allocated = $this->allowanceAmounts($plan)[$categoryId] ?? null;
+
+        if ($allocated === null) {
+            return null;
+        }
+
+        $spend = $this->categorySpend(
+            $plan->user_id,
+            [$categoryId],
+            $plan->cycle_start_date,
+            $plan->cycle_end_date,
+        );
+
+        // The expense being edited is already in the total; take it back out.
+        $spent = Money::floorAtZero(Money::sub($spend[$categoryId] ?? '0.00', $exclude));
+
+        return [
+            'category_id' => $categoryId,
+            'allocated' => $allocated,
+            'spent' => $spent,
+            'remaining' => Money::floorAtZero(Money::sub($allocated, $spent)),
+        ];
+    }
+
+    /** The display name of an allowance category in this plan. */
+    public function allowanceNameFor(MonthlyPlan $plan, int $categoryId): string
+    {
+        $plan->loadMissing('budgetCategories.category');
+
+        return $plan->budgetCategories
+            ->firstWhere('category_id', $categoryId)?->category?->name ?? 'allowance';
+    }
+
+    /**
      * Day-to-day spend in a window, with allowance spending netted off.
      *
      * An allowance covers spending in its category **up to the amount set

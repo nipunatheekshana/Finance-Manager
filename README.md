@@ -268,6 +268,15 @@ changes.
 A category limit that would be crossed is called out in the same panel, but it
 does not gate the save: category budgets warn, they never block (§27).
 
+Spending against an **allowance** is the exception, because the week is not
+paying for it. The preview asks the allowance first and only charges the week
+with whatever spills past it, so a 15,000 fuel bill against a 20,000 fuel
+allowance reads *"Comes out of your Transport allowance — 5,000 left of
+20,000"*, with no weekly warning and no checkbox to tick. Where it is split,
+the panel says so outright: *"5,000 from your Transport allowance, the last
+3,000 from this week."* Warning someone for spending exactly what they set
+aside is how a budget loses its authority.
+
 ### Anything owed this cycle can be settled early
 
 "Still to pay this cycle" lists both kinds of commitment together — fixed bills
@@ -498,7 +507,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 316 tests
+php artisan test           # 321 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

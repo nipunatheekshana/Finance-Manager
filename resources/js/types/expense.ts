@@ -100,6 +100,19 @@ export interface CategoryProjection {
 }
 
 /** What an expense would do, worked out before it is saved. */
+/** How much of an expense its category's allowance pays for. */
+export interface AllowanceProjection {
+  category_id: number
+  name: string
+  allocated: Money
+  spent_before: Money
+  remaining_before: Money
+  covered: Money
+  /** The part past the allowance, which lands on the week. */
+  from_day_to_day: Money
+  remaining_after: Money
+}
+
 export interface ExpenseImpact {
   amount: Money
   date?: string
@@ -107,6 +120,8 @@ export interface ExpenseImpact {
   week: BudgetProjection | null
   month: BudgetProjection | null
   category: CategoryProjection | null
+  /** Null unless the category is an allowance in the active plan. */
+  allowance: AllowanceProjection | null
   buffer_remaining: Money
   /** This expense is what tips the week over. */
   will_exceed_week: boolean

@@ -47,19 +47,26 @@ class ExpenseImpactService
         // totals, so take it out before adding the new one.
         $existing = $this->existingAmount($user, $excludeExpenseId);
 
+        // An allowance pays for its own category up to the amount reserved, so
+        // only what spills past it lands on the week. Warning about the weekly
+        // budget for money that was set aside on purpose would be telling the
+        // user off for following their own plan.
+        $allowance = $this->allowanceImpact($plan, $categoryId, $amount, $existing);
+        $chargedToWeek = $allowance === null ? $amount : $allowance['from_day_to_day'];
+
         $week = $this->budgets->currentWeek($plan, $on);
         $weekImpact = $week === null
             ? null
             : $this->project(
                 $this->budgets->weeklySummary($week, $on),
-                $amount,
+                $chargedToWeek,
                 $existing,
                 ['id' => $week->id, 'week_number' => $week->week_number],
             );
 
         $monthImpact = $this->project(
             $this->budgets->monthlySummary($plan, $on),
-            $amount,
+            $chargedToWeek,
             $existing,
         );
 
@@ -75,6 +82,7 @@ class ExpenseImpactService
             'week' => $weekImpact,
             'month' => $monthImpact,
             'category' => $categoryImpact,
+            'allowance' => $allowance,
             'buffer_remaining' => $plan->bufferRemaining(),
 
             // The case that needs a decision: this expense is what tips the
@@ -85,8 +93,49 @@ class ExpenseImpactService
                 && $categoryImpact['status_after'] === BudgetStatus::Over->value
                 && $categoryImpact['status_before'] !== BudgetStatus::Over->value,
             'needs_decision' => $willExceedWeek,
-            'headline' => $this->headline($weekImpact, $willExceedWeek, $alreadyOverWeek),
+            'headline' => $allowance !== null && Money::isZero($allowance['from_day_to_day'])
+                ? $this->allowanceHeadline($allowance)
+                : $this->headline($weekImpact, $willExceedWeek, $alreadyOverWeek),
         ];
+    }
+
+    /**
+     * How much of a proposed expense its allowance covers.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function allowanceImpact(
+        \App\Models\MonthlyPlan $plan,
+        ?int $categoryId,
+        string $amount,
+        string $existing,
+    ): ?array {
+        $state = $this->budgets->allowanceStateFor($plan, $categoryId, $existing);
+
+        if ($state === null) {
+            return null;
+        }
+
+        $covered = Money::min($amount, $state['remaining']);
+
+        return [
+            'category_id' => $state['category_id'],
+            'name' => $this->budgets->allowanceNameFor($plan, $state['category_id']),
+            'allocated' => $state['allocated'],
+            'spent_before' => $state['spent'],
+            'remaining_before' => $state['remaining'],
+            'covered' => $covered,
+            'from_day_to_day' => Money::sub($amount, $covered),
+            'remaining_after' => Money::floorAtZero(Money::sub($state['remaining'], $amount)),
+        ];
+    }
+
+    /** @param array<string, mixed> $allowance */
+    private function allowanceHeadline(array $allowance): string
+    {
+        return 'Comes out of your '.$allowance['name'].' allowance — LKR '
+            .number_format((float) $allowance['remaining_after'], 2).' left of LKR '
+            .number_format((float) $allowance['allocated'], 2).'.';
     }
 
     /**
@@ -236,6 +285,7 @@ class ExpenseImpactService
             'week' => null,
             'month' => null,
             'category' => null,
+            'allowance' => null,
             'buffer_remaining' => '0.00',
             'will_exceed_week' => false,
             'already_over_week' => false,
