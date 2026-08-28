@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Banknote, CreditCard, PiggyBank, Wallet } from 'lucide-vue-next'
+import { Banknote, CreditCard, PiggyBank, Undo2, Wallet } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
@@ -28,6 +28,7 @@ const ICONS: Record<CommitmentSource, unknown> = {
   spending: Wallet,
   buffer: Banknote,
   savings: PiggyBank,
+  savings_withdrawal: Undo2,
   debts: CreditCard,
 }
 

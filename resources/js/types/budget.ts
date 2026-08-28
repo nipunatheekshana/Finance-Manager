@@ -435,7 +435,14 @@ export interface PendingDebt {
   created_at: string | null
 }
 
-export type CommitmentSource = 'spending' | 'buffer' | 'savings' | 'debts'
+export type CommitmentSource =
+  | 'spending'
+  | 'buffer'
+  /** Plan to save less this cycle: only touches money not yet moved. */
+  | 'savings'
+  /** Take money already in a goal back out again. */
+  | 'savings_withdrawal'
+  | 'debts'
 
 export interface CommitmentOption {
   source: CommitmentSource

@@ -6,6 +6,7 @@ use App\Models\Debt;
 use App\Models\MonthlyPlan;
 use App\Models\PlanDebtAllocation;
 use App\Models\PlanSavingsAllocation;
+use App\Models\SavingsGoal;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -28,11 +29,12 @@ use RuntimeException;
 class PlanCommitmentService
 {
     /** Where the money for a new commitment comes from. */
-    public const SOURCES = ['spending', 'buffer', 'savings', 'debts'];
+    public const SOURCES = ['spending', 'buffer', 'savings', 'savings_withdrawal', 'debts'];
 
     public function __construct(
         private readonly FinancialPlanService $plans,
         private readonly BudgetCalculationService $budgets,
+        private readonly SavingsService $savings,
         private readonly AuditService $audit,
     ) {}
 
@@ -82,6 +84,7 @@ class PlanCommitmentService
         $spending = Money::of($plan->spending_budget);
         $buffer = $plan->bufferRemaining();
         $fromSavings = $this->reducibleSavings($plan);
+        $reclaimable = $this->reclaimableSavings($plan);
         $fromDebts = $this->reducibleDebts($plan);
 
         return [
@@ -125,6 +128,19 @@ class PlanCommitmentService
                         ? null
                         : 'Only '.$fromSavings.' of this month\'s savings can still be moved.',
                     'current' => $fromSavings,
+                    'resulting_savings' => Money::floorAtZero(Money::sub($plan->savings, $amount)),
+                ],
+                [
+                    'source' => 'savings_withdrawal',
+                    'label' => "Take back this month's saving",
+                    'description' => 'Moves money you have already put into a goal back out again.',
+                    'available' => Money::gte($reclaimable, $amount),
+                    'unavailable_reason' => Money::gte($reclaimable, $amount)
+                        ? null
+                        : ($reclaimable === '0.00'
+                            ? 'Nothing has been put aside this cycle to take back.'
+                            : 'Only '.$reclaimable.' was put aside this cycle.'),
+                    'current' => $reclaimable,
                     'resulting_savings' => Money::floorAtZero(Money::sub($plan->savings, $amount)),
                 ],
                 [
@@ -194,6 +210,7 @@ class PlanCommitmentService
                     'buffer' => Money::floorAtZero(Money::sub($plan->buffer, $amount)),
                 ])->save(),
                 'savings' => $this->takeFromSavings($plan, $amount),
+                'savings_withdrawal' => $this->reclaimFromSavings($plan, $amount, $debt->name),
                 'debts' => $this->takeFromDebts($plan, $amount, $debt->id),
             };
 
@@ -225,6 +242,73 @@ class PlanCommitmentService
                 'source' => $source,
             ];
         });
+    }
+
+    /**
+     * Money already in a goal that this cycle put there — and that the goal
+     * still holds. Capped by the balance, because a goal cannot give back more
+     * than it has, whenever the money arrived.
+     */
+    private function reclaimableSavings(MonthlyPlan $plan): string
+    {
+        $plan->loadMissing('savingsAllocations.savingsGoal');
+
+        return Money::sum($plan->savingsAllocations->map(
+            fn (PlanSavingsAllocation $row) => Money::min(
+                Money::of($row->saved_amount),
+                Money::of($row->savingsGoal?->current_amount ?? 0),
+            )
+        ));
+    }
+
+    /**
+     * Take this cycle's saving back out of the goals and let it pay for the
+     * new commitment instead. The plan intends to save less, so the day-to-day
+     * budget is unaffected.
+     */
+    private function reclaimFromSavings(MonthlyPlan $plan, string $amount, string $debtName): void
+    {
+        $left = $amount;
+
+        $allocations = $plan->savingsAllocations()
+            ->with('savingsGoal')
+            ->get()
+            ->sortByDesc(fn (PlanSavingsAllocation $row) => $row->savingsGoal->priority);
+
+        foreach ($allocations as $allocation) {
+            if (! Money::isPositive($left)) {
+                break;
+            }
+
+            $goal = $allocation->savingsGoal;
+
+            $available = Money::min(
+                Money::of($allocation->saved_amount),
+                Money::of($goal->current_amount),
+            );
+            $take = Money::min($left, $available);
+
+            if (! Money::isPositive($take)) {
+                continue;
+            }
+
+            // A real withdrawal: the goal's balance drops and the movement is
+            // on its history, so the money is never quietly conjured.
+            $this->savings->withdraw($goal, [
+                'amount' => $take,
+                'transaction_date' => CarbonImmutable::today()->toDateString(),
+                'monthly_plan_id' => $plan->id,
+                'description' => 'Moved to '.$debtName,
+            ]);
+
+            $allocation->refresh()->forceFill([
+                'planned_amount' => Money::floorAtZero(
+                    Money::sub($allocation->planned_amount, $take)
+                ),
+            ])->save();
+
+            $left = Money::sub($left, $take);
+        }
     }
 
     /** Savings that could still be moved: planned less what is already saved. */

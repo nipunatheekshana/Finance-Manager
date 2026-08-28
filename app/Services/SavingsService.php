@@ -229,14 +229,24 @@ class SavingsService
             return;
         }
 
-        $deposits = Money::of(
-            SavingsTransaction::query()
-                ->where('savings_goal_id', $goal->id)
-                ->where('monthly_plan_id', $transaction->monthly_plan_id)
-                ->whereIn('type', [SavingsTransactionType::Deposit->value, SavingsTransactionType::TransferIn->value])
-                ->sum('amount')
-        );
+        $movements = SavingsTransaction::query()
+            ->where('savings_goal_id', $goal->id)
+            ->where('monthly_plan_id', $transaction->monthly_plan_id)
+            ->get();
 
-        $allocation->forceFill(['saved_amount' => $deposits])->save();
+        $in = Money::sum($movements
+            ->whereIn('type', [SavingsTransactionType::Deposit, SavingsTransactionType::TransferIn])
+            ->pluck('amount'));
+
+        // Counting deposits alone said 20,000 was put aside when 8,000 had
+        // been taken straight back out. What the cycle actually saved is the
+        // net, and every "still to save" figure is derived from it.
+        $out = Money::sum($movements
+            ->whereIn('type', [SavingsTransactionType::Withdrawal, SavingsTransactionType::TransferOut])
+            ->pluck('amount'));
+
+        $allocation->forceFill([
+            'saved_amount' => Money::floorAtZero(Money::sub($in, $out)),
+        ])->save();
     }
 }

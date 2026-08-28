@@ -249,8 +249,14 @@ the user picks which — each choice showing the figure it would leave behind:
 |---|---|
 | Day-to-day money | The spending budget shrinks, and the **remaining** weeks are re-cut — never below what a week has already spent |
 | Buffer | The safety net shrinks; weekly budgets are untouched |
-| Savings | Lowest-priority goal first, never below what is already put aside |
+| Save less this month | Lowest-priority goal first, but only money **not yet moved** into the goal |
+| Take this month's saving back | A real withdrawal from the goal, when the money has already gone in |
 | Another debt | Lowest-interest debt first, never below what is already paid |
+
+The last two are separate on purpose. Reducing a plan's savings allocation
+cannot touch money that is already sitting in the goal, so once a deposit is
+made that lever gives nothing — and the honest answer is a withdrawal, which
+moves real money and belongs on the goal's history where it can be seen.
 
 The floors are the point: money already spent, saved or paid cannot be taken
 back, so [`PlanCommitmentService`](app/Services/PlanCommitmentService.php)
@@ -531,7 +537,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 329 tests
+php artisan test           # 334 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
