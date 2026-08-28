@@ -235,6 +235,29 @@ are readable from the same screen by picking them from the list.
 [`CycleProgressService`](app/Services/CycleProgressService.php) assembles it
 from the services that already do the arithmetic; it computes nothing new.
 
+### A debt taken on mid-cycle
+
+A loan opened on the 10th is real money owed this month, but the plan was
+balanced without it — and `updateAllocations` could only change allocations
+that already existed, so there was no way to add one at all.
+
+The planner's debt step now lists any debt missing from the cycle and offers to
+add it. Because the plan is already running, exactly one thing has to give, and
+the user picks which — each choice showing the figure it would leave behind:
+
+| Source | What changes |
+|---|---|
+| Day-to-day money | The spending budget shrinks, and the **remaining** weeks are re-cut — never below what a week has already spent |
+| Buffer | The safety net shrinks; weekly budgets are untouched |
+| Savings | Lowest-priority goal first, never below what is already put aside |
+| Another debt | Lowest-interest debt first, never below what is already paid |
+
+The floors are the point: money already spent, saved or paid cannot be taken
+back, so [`PlanCommitmentService`](app/Services/PlanCommitmentService.php)
+refuses a source that cannot cover the payment rather than quietly taking what
+it can. Every addition is written to the audit trail with the source that
+funded it.
+
 ### Nothing moves without the user
 
 When a week is overspent the app presents the options — reduce next week, use
@@ -409,6 +432,7 @@ app/
     CardPaymentMethodService     One payment method per credit card
     ExpenseImpactService         What an expense would do, before it is saved
     CycleProgressService         Planned against actual, entity by entity
+    PlanCommitmentService        Adding a debt to a cycle already running
     CycleSurplusService          What happens to a finished cycle's leftover
     DebtPaymentService           Payments, card charges, reversals
     DebtPayoffService            Payoff estimates with or without interest
@@ -507,7 +531,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 321 tests
+php artisan test           # 329 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

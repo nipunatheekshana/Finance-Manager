@@ -422,3 +422,38 @@ export interface CycleProgress {
     is_intact: boolean
   }
 }
+
+/** A debt that exists but is not in the current plan. */
+export interface PendingDebt {
+  debt_id: number
+  name: string
+  type_label: string
+  current_balance: Money
+  due_day: number | null
+  suggested_amount: Money
+  minimum_payment: Money
+  created_at: string | null
+}
+
+export type CommitmentSource = 'spending' | 'buffer' | 'savings' | 'debts'
+
+export interface CommitmentOption {
+  source: CommitmentSource
+  label: string
+  description: string
+  available: boolean
+  unavailable_reason: string | null
+  current: Money
+  resulting_spending_budget?: Money
+  resulting_buffer?: Money
+  resulting_savings?: Money
+  resulting_debt_payment?: Money
+  weeks_affected?: number
+}
+
+export interface CommitmentOptions {
+  plan_label: string
+  debt: { debt_id: number; name: string; current_balance: Money }
+  amount: Money
+  options: CommitmentOption[]
+}

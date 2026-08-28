@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\CycleProgressController;
 use App\Http\Controllers\Api\DebtController;
+use App\Http\Controllers\Api\PlanCommitmentController;
 use App\Http\Controllers\Api\DebtPaymentController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\FinancialHealthController;
@@ -120,6 +121,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Steps 3 & 4 — debt and savings allocations
         Route::put('allocations', [MonthlyPlanController::class, 'updateAllocations']);
+
+        // A debt taken on after the plan was finalised. updateAllocations can
+        // only change what is already there; this adds it and rebalances.
+        Route::get('pending-debts', [PlanCommitmentController::class, 'index']);
+        Route::get('pending-debts/{debt}/options', [PlanCommitmentController::class, 'options']);
+        Route::post('pending-debts/{debt}', [PlanCommitmentController::class, 'store']);
 
         // Step 6 — weekly budgets
         Route::get('weeks', [MonthlyPlanController::class, 'weeks']);

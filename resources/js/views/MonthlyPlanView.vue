@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Ban, Check, CheckCircle2,
-  Clock, Pencil, Plus, RotateCcw, Wallet,
+  Clock, Pencil, Plus, PlusCircle, RotateCcw, Wallet,
 } from 'lucide-vue-next'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
@@ -12,6 +12,7 @@ import TextField from '@/components/common/TextField.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import AllocationChart from '@/components/budgets/AllocationChart.vue'
 import AllowanceList from '@/components/budgets/AllowanceList.vue'
+import AddDebtSheet from '@/components/budgets/AddDebtSheet.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import { api } from '@/services/api'
 import { useBudgetStore } from '@/stores/budget'
@@ -20,6 +21,7 @@ import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
 import { formatDate, formatDateRange } from '@/composables/useDates'
 import { amountToNumber } from '@/composables/useCurrency'
+import type { PendingDebt } from '@/types'
 
 const budget = useBudgetStore()
 const dashboard = useDashboardStore()
@@ -35,6 +37,10 @@ const newBill = ref({ name: '', amount: '', due_date: '' })
 
 /** Amount reserved per category this cycle, keyed by category id. */
 const allowanceInputs = ref<Record<number, string>>({})
+/** Debts created after this plan was finalised, so absent from it. */
+const pendingDebts = ref<PendingDebt[]>([])
+const addingDebt = ref<PendingDebt | null>(null)
+
 const allowanceCategories = ref<
   Array<{ id: number; name: string; icon: string; color: string; is_allowance: boolean }>
 >([])
@@ -158,7 +164,7 @@ async function saveAllowances(): Promise<void> {
 onMounted(async () => {
   await budget.loadCurrent()
   seedWeekInputs()
-  await loadAllowances()
+  await Promise.all([loadAllowances(), loadPendingDebts()])
 })
 
 function guardEditable(): boolean {
@@ -176,6 +182,20 @@ async function saveIncome(): Promise<void> {
     step.value = 1
   } catch (error) {
     if (error instanceof ApiError) ui.error('Could not save that amount', error.message)
+  }
+}
+
+async function loadPendingDebts(): Promise<void> {
+  if (!plan.value) return
+
+  try {
+    const response = await api.get<{ data: PendingDebt[] }>(
+      `/monthly-plans/${plan.value.id}/pending-debts`,
+    )
+    pendingDebts.value = response.data
+  } catch {
+    // A missing list is not worth interrupting the planner for.
+    pendingDebts.value = []
   }
 }
 
@@ -624,6 +644,37 @@ async function reopen(): Promise<void> {
           />
         </div>
 
+        <!-- A debt taken on after the plan was finalised is not in it, and
+             editing the amounts above cannot add it. -->
+        <div
+          v-for="pending in pendingDebts"
+          :key="pending.debt_id"
+          class="card border border-brand/40 bg-brand-soft p-4"
+        >
+          <div class="flex items-start gap-3">
+            <PlusCircle class="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-ink">
+                {{ pending.name }} is not in this cycle
+              </p>
+              <p class="mt-0.5 text-sm text-ink-muted">
+                {{ pending.type_label }} ·
+                <MoneyText :amount="pending.current_balance" size="sm" /> owed.
+                <template v-if="isFinalized">
+                  Adding it means something else gives.
+                </template>
+              </p>
+              <button
+                type="button"
+                class="btn btn-primary mt-3 !min-h-10 !text-sm"
+                @click="addingDebt = pending"
+              >
+                Add it to this cycle
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="card flex items-center justify-between p-4">
           <span class="text-sm font-semibold text-ink">Total debt payments</span>
           <MoneyText :amount="summary.debt_payment" size="lg" class="font-bold" />
@@ -831,5 +882,12 @@ async function reopen(): Promise<void> {
         </button>
       </div>
     </div>
+
+    <AddDebtSheet
+      :plan-id="plan?.id ?? null"
+      :debt="addingDebt"
+      @close="addingDebt = null"
+      @added="loadPendingDebts"
+    />
   </div>
 </template>
