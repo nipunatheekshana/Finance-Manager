@@ -271,6 +271,13 @@ the buffer, reduce a category, or ignore — with the exact effect of each, and
 changes nothing until one is chosen. Every applied choice is written to
 `budget_adjustments`.
 
+An alert is a statement about the present, so it is withdrawn the moment its
+condition clears. Covering an overspend takes the banner down; covering only
+part of it leaves the banner up with the smaller figure; deleting the expense
+that caused it clears it too. Every path that changes a week re-checks its
+alerts inside `BudgetAdjustmentService`, so no caller can leave a banner
+contradicting the figures beside it.
+
 "Take it from next week" is a **move**, so it has two halves: the later week
 gives the money up and the overspent week receives it. Only the first half
 existed at one point, which left the user poorer next week and still over this
@@ -543,7 +550,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 338 tests
+php artisan test           # 345 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

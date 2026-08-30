@@ -144,6 +144,10 @@ class ExpenseService
 
             $expense->delete();
         });
+
+        // Removing the spending can take the week back under its budget, and
+        // the warning has to go with it.
+        $this->alerts->afterExpenseDeleted($expense);
     }
 
     /**

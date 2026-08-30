@@ -24,6 +24,7 @@ class BudgetAdjustmentService
     public function __construct(
         private readonly BudgetCalculationService $budgets,
         private readonly AuditService $audit,
+        private readonly AlertService $alerts,
     ) {}
 
     /**
@@ -111,12 +112,19 @@ class BudgetAdjustmentService
             throw new InvalidArgumentException('There is nothing to adjust.');
         }
 
-        return DB::transaction(fn () => match ($type) {
+        $adjustment = DB::transaction(fn () => match ($type) {
             AdjustmentType::NextWeek => $this->reduceNextWeek($plan, $week, $amount, $payload),
             AdjustmentType::Buffer => $this->useBuffer($plan, $week, $amount, $payload),
             AdjustmentType::Category => $this->reduceCategory($plan, $week, $amount, $payload),
             AdjustmentType::Ignore => $this->recordIgnore($plan, $week, $amount, $payload),
         });
+
+        // The week's figures have just changed, so whatever alert it was
+        // carrying may no longer be true. Done here rather than in the
+        // controller so every caller leaves the banners consistent.
+        $this->alerts->refreshWeek($week->fresh());
+
+        return $adjustment;
     }
 
     private function reduceNextWeek(MonthlyPlan $plan, WeeklyBudget $week, string $amount, array $payload): BudgetAdjustment

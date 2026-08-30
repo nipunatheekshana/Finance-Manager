@@ -8,6 +8,7 @@ use App\Models\Debt;
 use App\Models\Expense;
 use App\Models\FinancialProfile;
 use App\Models\FinancialAlert;
+use App\Models\WeeklyBudget;
 use App\Models\User;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -85,6 +86,33 @@ class AlertService
     }
 
     /**
+     * Take down an alert whose condition no longer holds.
+     *
+     * An alert is a statement about the present. Leaving one up after the
+     * overspend has been covered says something untrue, and a banner that
+     * cries wolf is one the user learns to scroll past.
+     */
+    public function withdraw(User $user, AlertType $type, string $reference = ''): void
+    {
+        FinancialAlert::query()
+            ->where('user_id', $user->id)
+            ->where('type', $type->value)
+            ->where('reference', $reference)
+            ->delete();
+    }
+
+    /**
+     * Re-check one week after something has changed it, so the banner follows
+     * the figures rather than the other way round.
+     */
+    public function refreshWeek(WeeklyBudget $week): void
+    {
+        $plan = $week->monthlyPlan;
+
+        $this->checkWeeklyBudget($plan->user, $plan);
+    }
+
+    /**
      * Budget checks that run immediately after an expense is saved, so the user
      * sees the consequence of what they just logged.
      */
@@ -103,6 +131,23 @@ class AlertService
         if ($expense->debt_id !== null) {
             $this->checkCreditCardIncrease($user, $expense);
         }
+    }
+
+    /**
+     * The same checks after a delete: the expense is gone, so the budgets it
+     * pushed over may be back within their limits.
+     */
+    public function afterExpenseDeleted(Expense $expense): void
+    {
+        $user = $expense->user;
+        $plan = $this->plans->activePlanFor($user);
+
+        if ($plan === null) {
+            return;
+        }
+
+        $this->checkCategoryBudget($user, $plan, $expense->category_id);
+        $this->checkWeeklyBudget($user, $plan);
     }
 
     /**
@@ -347,6 +392,17 @@ class AlertService
         }
 
         $summary = $this->budgets->weeklySummary($week, $today);
+        $reference = 'week:'.$week->id;
+
+        // Each state withdraws the alerts that belong to the others, so the
+        // banner always matches the week's current state.
+        if ($summary['status'] !== 'over') {
+            $this->withdraw($user, AlertType::BudgetExceeded, $reference);
+        }
+
+        if ($summary['status'] !== 'warning') {
+            $this->withdraw($user, AlertType::BudgetWarning, $reference);
+        }
 
         if ($summary['status'] === 'over') {
             $this->raise(
