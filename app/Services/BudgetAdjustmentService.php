@@ -128,16 +128,31 @@ class BudgetAdjustmentService
         }
 
         $original = $target->effectiveBudget();
-        $adjusted = Money::floorAtZero(Money::sub($original, $amount));
 
+        // A week cannot give away more than it has.
+        $moved = Money::min($amount, $original);
+
+        if (! Money::isPositive($moved)) {
+            throw new InvalidArgumentException(
+                "Week {$target->week_number} has no budget left to move."
+            );
+        }
+
+        $adjusted = Money::sub($original, $moved);
         $target->forceFill(['adjusted_amount' => $adjusted])->save();
+
+        // The other half of the move. Without it the later week was reduced
+        // and nothing arrived: the overspent week stayed over, and the money
+        // was given up for nothing.
+        $weekBefore = $week->effectiveBudget();
+        $week->forceFill(['adjusted_amount' => Money::add($weekBefore, $moved)])->save();
 
         $this->audit->record(
             $plan->user_id,
             'budget.week_adjusted',
             $target,
-            ['budget' => $original],
-            ['budget' => $adjusted],
+            ['budget' => $original, 'source_week_budget' => $weekBefore],
+            ['budget' => $adjusted, 'source_week_budget' => $week->effectiveBudget()],
             'Covering an overspend in week '.$week->week_number,
         );
 
@@ -147,7 +162,8 @@ class BudgetAdjustmentService
             'weekly_budget_id' => $target->id,
             'source_weekly_budget_id' => $week->id,
             'type' => AdjustmentType::NextWeek->value,
-            'amount' => $amount,
+            // What actually moved, which is not always what was asked for.
+            'amount' => $moved,
             'original_amount' => $original,
             'adjusted_amount' => $adjusted,
             'reason' => $payload['reason'] ?? 'Overspend in week '.$week->week_number,

@@ -271,6 +271,12 @@ the buffer, reduce a category, or ignore — with the exact effect of each, and
 changes nothing until one is chosen. Every applied choice is written to
 `budget_adjustments`.
 
+"Take it from next week" is a **move**, so it has two halves: the later week
+gives the money up and the overspent week receives it. Only the first half
+existed at one point, which left the user poorer next week and still over this
+week. A week can only give what it has, so the amount recorded is what actually
+moved, and the cycle's weekly total is unchanged by the transfer.
+
 ### Going over a weekly limit is never silent
 
 Recording an expense is never blocked: the money has already been spent, and a
@@ -537,7 +543,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 334 tests
+php artisan test           # 338 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```
