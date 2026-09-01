@@ -451,6 +451,7 @@ app/
     CardPaymentMethodService     One payment method per credit card
     ExpenseImpactService         What an expense would do, before it is saved
     CycleProgressService         Planned against actual, entity by entity
+    UserProfileService           The account's history and lifetime totals
     PlanCommitmentService        Adding a debt to a cycle already running
     CycleSurplusService          What happens to a finished cycle's leftover
     DebtPaymentService           Payments, card charges, reversals
@@ -516,6 +517,36 @@ that ~35 cross-account URLs are all denied.
 
 ---
 
+## The account's own page
+
+**Profile** is the account's record of itself: a unique handle, a picture, and
+the history behind every other screen.
+
+- **All time** — debt paid off and debts cleared, money saved, cycles planned
+  and finished, expenses logged. The figures that say whether the last year
+  actually went anywhere.
+- **Months** — every cycle, newest first, with what was budgeted against what
+  was spent, plus the debt paid and money saved in each.
+- **Debt** — each debt's progress from its original amount, which are cleared
+  and when, and the recent payments behind it.
+- **Savings** — each goal against its target.
+- **Activity** — the audit trail in plain language ("Adjusted a weekly budget",
+  "Reopened a plan"), paginated separately so opening the profile stays quick.
+
+The handle is lowercase and unique, checked against a reserved list so nothing
+can be called `settings` or `admin`, and is derived from the name at sign-up so
+no one has to choose one before they can use the app. Pictures are validated as
+real images, capped at 2 MB — under the `post_max_size` a shared host typically
+allows, so an oversized file is refused clearly rather than arriving as an empty
+request — and the previous file is deleted only once the new one is stored.
+
+Note that [`ProfileController`](app/Http/Controllers/Api/ProfileController.php)
+owns the *financial* profile (salary, cycle day, funding), while
+[`UserProfileController`](app/Http/Controllers/Api/UserProfileController.php)
+owns this page, under `/api/me`.
+
+---
+
 ## Offline support
 
 Expense entry works without a connection. Each entry is queued locally with a
@@ -550,7 +581,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 345 tests
+php artisan test           # 355 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

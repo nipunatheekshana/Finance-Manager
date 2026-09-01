@@ -120,6 +120,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Cash flow' },
       },
       {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('@/views/ProfileView.vue'),
+        meta: { title: 'Profile' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/views/SettingsView.vue'),

@@ -15,7 +15,7 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'password'];
+    protected $fillable = ['name', 'email', 'password', 'handle', 'avatar_path'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -25,6 +25,70 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * A handle is how the account is referred to: lowercase, unique, and
+     * stable enough to appear in a URL one day.
+     */
+    public const HANDLE_PATTERN = '/^[a-z0-9](?:[a-z0-9_.]{1,28}[a-z0-9])$/';
+
+    /** Names that would collide with a route or read as official. */
+    public const RESERVED_HANDLES = [
+        'admin', 'administrator', 'api', 'app', 'auth', 'budget', 'dashboard',
+        'debts', 'expenses', 'help', 'income', 'login', 'logout', 'me', 'plan',
+        'profile', 'register', 'reports', 'root', 'savings', 'settings',
+        'support', 'system', 'user', 'users',
+    ];
+
+    protected static function booted(): void
+    {
+        // Everyone has a handle from the moment the account exists, so nothing
+        // downstream has to cope with it being missing.
+        static::creating(function (self $user) {
+            $user->handle ??= self::generateHandle(
+                $user->name ?: \Illuminate\Support\Str::before((string) $user->email, '@')
+            );
+        });
+    }
+
+    /** A handle derived from a name, made unique with a numeric suffix. */
+    public static function generateHandle(string $from): string
+    {
+        $base = \Illuminate\Support\Str::of($from)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '')
+            ->limit(24, '')
+            ->value();
+
+        if (strlen($base) < 3 || in_array($base, self::RESERVED_HANDLES, true)) {
+            $base = 'user'.substr((string) $base, 0, 20);
+        }
+
+        $handle = $base;
+        $suffix = 1;
+
+        while (self::query()->where('handle', $handle)->exists()) {
+            $handle = $base.(++$suffix);
+        }
+
+        return $handle;
+    }
+
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path === null
+            ? null
+            : \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path);
+    }
+
+    /** The two letters shown when there is no picture. */
+    public function initials(): string
+    {
+        $parts = preg_split('/\s+/', trim($this->name)) ?: [];
+        $letters = array_map(fn (string $part) => mb_substr($part, 0, 1), array_slice($parts, 0, 2));
+
+        return mb_strtoupper(implode('', $letters)) ?: mb_strtoupper(mb_substr($this->email, 0, 1));
     }
 
     public function financialProfile(): HasOne

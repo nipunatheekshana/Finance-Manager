@@ -13,6 +13,10 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'handle' => $this->handle,
+            'avatar_url' => $this->avatarUrl(),
+            'initials' => $this->initials(),
+            'member_since' => $this->created_at?->toDateString(),
             'profile' => new FinancialProfileResource($this->whenLoaded('financialProfile')),
         ];
     }

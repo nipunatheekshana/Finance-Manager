@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\MonthlyPlanController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\RecurringTransactionController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SavingsGoalController;
@@ -170,6 +171,14 @@ Route::middleware('auth:sanctum')->group(function () {
     /*
     | Insight
     */
+    // The account's own page: identity and the whole history behind it.
+    // "profile" is already the financial profile, so this lives under /me.
+    Route::get('me', [UserProfileController::class, 'show']);
+    Route::get('me/activity', [UserProfileController::class, 'activity']);
+    Route::put('me', [UserProfileController::class, 'update']);
+    Route::post('me/avatar', [UserProfileController::class, 'uploadAvatar']);
+    Route::delete('me/avatar', [UserProfileController::class, 'deleteAvatar']);
+
     Route::get('cash-flow', [CashFlowController::class, 'show']);
 
     // One board for the whole cycle: what was planned against what has
