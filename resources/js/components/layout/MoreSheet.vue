@@ -3,8 +3,7 @@ import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Gauge,
-  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, UserRound,
-  Wallet,
+  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -63,10 +62,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Account',
-    items: [
-      { to: '/profile', label: 'Profile', icon: UserRound },
-      { to: '/settings', label: 'Settings', icon: Settings },
-    ],
+    items: [{ to: '/settings', label: 'Settings', icon: Settings }],
   },
 ]
 
@@ -137,10 +133,36 @@ async function signOut(): Promise<void> {
       <!-- Signing out lived only on the Settings screen, which a phone could
            not reach. -->
       <section class="border-t border-line pt-4">
-        <div class="px-3">
-          <p class="truncate text-sm font-semibold text-ink">{{ auth.user?.name }}</p>
-          <p class="truncate text-xs text-ink-subtle">{{ auth.user?.email }}</p>
-        </div>
+        <!-- Tapping your own name opens your own page. -->
+        <RouterLink
+          to="/profile"
+          class="flex min-h-12 items-center gap-3 rounded-[var(--radius-field)] px-3 py-2 transition"
+          :class="isActive('/profile') ? 'bg-brand-soft' : 'hover:bg-sunken'"
+          :aria-current="isActive('/profile') ? 'page' : undefined"
+        >
+          <img
+            v-if="auth.user?.avatar_url"
+            :src="auth.user.avatar_url"
+            alt=""
+            class="h-10 w-10 shrink-0 rounded-full object-cover"
+          />
+          <span
+            v-else
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-bold text-brand"
+            aria-hidden="true"
+          >
+            {{ auth.user?.initials }}
+          </span>
+
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-ink">{{ auth.user?.name }}</span>
+            <span class="block truncate text-xs text-ink-subtle">
+              {{ auth.user?.handle ? `@${auth.user.handle}` : auth.user?.email }}
+            </span>
+          </span>
+
+          <ChevronRight class="h-4 w-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+        </RouterLink>
 
         <button
           type="button"

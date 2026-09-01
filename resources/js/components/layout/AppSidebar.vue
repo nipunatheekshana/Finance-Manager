@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import {
-  Banknote, BarChart3, CalendarDays, CreditCard, Download, Gauge, Home,
-  ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, UserRound, Wallet,
+  Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Gauge,
+  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -27,7 +27,6 @@ const items = [
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/cash-flow', label: 'Cash flow', icon: TrendingUp },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/profile', label: 'Profile', icon: UserRound },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -82,10 +81,36 @@ async function signOut(): Promise<void> {
         Install app
       </button>
 
-      <div class="px-3 py-2">
-        <p class="truncate text-sm font-semibold text-ink">{{ auth.user?.name }}</p>
-        <p class="truncate text-xs text-ink-subtle">{{ auth.user?.email }}</p>
-      </div>
+      <!-- Your own name is where you expect to find your own page. -->
+      <RouterLink
+        to="/profile"
+        class="flex items-center gap-3 rounded-[var(--radius-field)] px-3 py-2 transition"
+        :class="isActive('/profile') ? 'bg-brand-soft' : 'hover:bg-sunken'"
+        :aria-current="isActive('/profile') ? 'page' : undefined"
+      >
+        <img
+          v-if="auth.user?.avatar_url"
+          :src="auth.user.avatar_url"
+          alt=""
+          class="h-9 w-9 shrink-0 rounded-full object-cover"
+        />
+        <span
+          v-else
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand"
+          aria-hidden="true"
+        >
+          {{ auth.user?.initials }}
+        </span>
+
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-semibold text-ink">{{ auth.user?.name }}</span>
+          <span class="block truncate text-xs text-ink-subtle">
+            {{ auth.user?.handle ? `@${auth.user.handle}` : auth.user?.email }}
+          </span>
+        </span>
+
+        <ChevronRight class="h-4 w-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+      </RouterLink>
       <button
         type="button"
         class="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-field)] px-3 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-sunken hover:text-ink"

@@ -40,6 +40,17 @@ class MobileNavigationTest extends TestCase
         return array_values(array_unique(array_map(fn (string $path) => '/'.$path, $paths)));
     }
 
+    /**
+     * A screen counts as reachable whether it is a row in a menu list or a
+     * link written straight into the markup — the profile is opened by
+     * tapping your own name, not by a list item.
+     */
+    private function linksTo(string $source, string $path): bool
+    {
+        return str_contains($source, "to: '{$path}'")
+            || str_contains($source, "to=\"{$path}\"");
+    }
+
     private function mobileNav(): string
     {
         return file_get_contents($this->root('resources/js/components/layout/BottomNav.vue'))
@@ -63,9 +74,8 @@ class MobileNavigationTest extends TestCase
         $source = $this->mobileNav();
 
         foreach ($this->shellRoutePaths() as $path) {
-            $this->assertStringContainsString(
-                "to: '{$path}'",
-                $source,
+            $this->assertTrue(
+                $this->linksTo($source, $path),
                 "{$path} is in the router but in no mobile menu, so a phone cannot reach it.",
             );
         }
@@ -80,7 +90,10 @@ class MobileNavigationTest extends TestCase
         // no link to the planner anywhere on desktop, because every route to
         // it was conditional on something that account did not have.
         foreach ($this->shellRoutePaths() as $path) {
-            $this->assertStringContainsString("to: '{$path}'", $sidebar);
+            $this->assertTrue(
+                $this->linksTo($sidebar, $path),
+                "{$path} is in the router but nowhere in the sidebar.",
+            );
         }
     }
 
