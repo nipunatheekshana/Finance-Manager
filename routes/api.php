@@ -129,6 +129,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('pending-debts/{debt}/options', [PlanCommitmentController::class, 'options']);
         Route::post('pending-debts/{debt}', [PlanCommitmentController::class, 'store']);
 
+        // An allowance spent past its pot: top it up from somewhere the user
+        // chooses, rather than letting it quietly eat the weekly budget.
+        Route::get('allowance-top-ups', [PlanCommitmentController::class, 'overspentAllowances']);
+        Route::get('allowance-top-ups/{category}/options', [PlanCommitmentController::class, 'topUpOptions']);
+        Route::post('allowance-top-ups/{category}', [PlanCommitmentController::class, 'topUp']);
+
         // Step 6 — weekly budgets
         Route::get('weeks', [MonthlyPlanController::class, 'weeks']);
         Route::put('weeks', [MonthlyPlanController::class, 'updateWeeks']);

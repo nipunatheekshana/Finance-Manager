@@ -464,3 +464,55 @@ export interface CommitmentOptions {
   amount: Money
   options: CommitmentOption[]
 }
+
+/** An allowance spent past the amount reserved for it. */
+export interface OverspentAllowance {
+  category_id: number
+  name: string
+  icon: string
+  color: string
+  allocated: Money
+  spent: Money
+  over_by: Money
+}
+
+export type TopUpSource =
+  | 'allowance'
+  | 'spending'
+  | 'buffer'
+  | 'savings'
+  | 'savings_withdrawal'
+
+export interface TopUpOption {
+  source: TopUpSource
+  label: string
+  description: string
+  available: boolean
+  unavailable_reason: string | null
+  current: Money
+  /** Set when the source is another allowance the user must pick. */
+  needs_choice?: boolean
+  resulting_spending_budget?: Money
+  resulting_buffer?: Money
+  resulting_savings?: Money
+}
+
+export interface TopUpOptions {
+  plan_label: string
+  category: {
+    category_id: number
+    name: string
+    allocated: Money
+    spent: Money
+    over_by: Money
+  }
+  amount: Money
+  other_allowances: Array<{
+    category_id: number
+    name: string
+    allocated: Money
+    spent: Money
+    available: Money
+  }>
+  options: TopUpOption[]
+}

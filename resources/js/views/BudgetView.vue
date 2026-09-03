@@ -10,16 +10,19 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import CategoryBudgetList from '@/components/dashboard/CategoryBudgetList.vue'
 import AllowanceList from '@/components/budgets/AllowanceList.vue'
+import TopUpAllowanceSheet from '@/components/budgets/TopUpAllowanceSheet.vue'
 import OverspendSheet from '@/components/budgets/OverspendSheet.vue'
 import WeeklyReviewSheet from '@/components/budgets/WeeklyReviewSheet.vue'
 import { useBudgetStore } from '@/stores/budget'
 import { useDashboardStore } from '@/stores/dashboard'
 import { formatDateRange } from '@/composables/useDates'
+import type { OverspentAllowance } from '@/types'
 
 const budget = useBudgetStore()
 const dashboard = useDashboardStore()
 
 const overspendWeekId = ref<number | null>(null)
+const toppingUp = ref<OverspentAllowance | null>(null)
 const reviewWeekId = ref<number | null>(null)
 
 const plan = computed(() => budget.plan)
@@ -27,6 +30,24 @@ const weeks = computed(() => budget.weekSummaries)
 const categories = computed(() => dashboard.data?.categories ?? [])
 const allowances = computed(() => dashboard.data?.allowances ?? [])
 const month = computed(() => dashboard.data?.month_budget ?? null)
+
+/**
+ * Allowances spent past their pot. Left alone the excess quietly eats the
+ * weekly budget, so it is offered as a decision instead.
+ */
+const overspentAllowances = computed<OverspentAllowance[]>(() =>
+  allowances.value
+    .filter((row) => row.status === 'over')
+    .map((row) => ({
+      category_id: row.category_id,
+      name: row.name,
+      icon: row.icon,
+      color: row.color,
+      allocated: row.allocated,
+      spent: row.spent,
+      over_by: row.over_by,
+    })),
+)
 
 /** Finished weeks that ran over and have not been resolved yet. */
 const needsAttention = computed(() => weeks.value.filter((week) => week.status === 'over'))
@@ -207,6 +228,7 @@ async function afterAdjustment(): Promise<void> {
           <AllowanceList :allowances="allowances" />
         </div>
 
+
         <!-- The link to set one up used to live behind "v-if allowances" —
              visible only once you already had what it was for. -->
         <EmptyState
@@ -217,6 +239,29 @@ async function afterAdjustment(): Promise<void> {
           action-label="Set up allowances"
           @action="$router.push('/plan')"
         />
+        <!-- Each pot that has run out, with a way to settle it deliberately. -->
+        <div
+          v-for="row in overspentAllowances"
+          :key="row.category_id"
+          class="mt-3 flex items-start gap-3 rounded-[var(--radius-card)] bg-over-soft p-4"
+        >
+          <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-over" aria-hidden="true" />
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-bold text-over">{{ row.name }} has run out</p>
+            <p class="mt-1 text-sm text-ink">
+              <MoneyText :amount="row.over_by" size="sm" class="font-bold" /> past the
+              <MoneyText :amount="row.allocated" size="sm" /> set aside. Until you move
+              money across, it comes out of your weekly budget.
+            </p>
+            <button
+              type="button"
+              class="btn btn-primary mt-3 !min-h-10 !text-sm"
+              @click="toppingUp = row"
+            >
+              Top it up
+            </button>
+          </div>
+        </div>
       </section>
 
       <!-- Category budgets -->
@@ -242,6 +287,13 @@ async function afterAdjustment(): Promise<void> {
         />
       </section>
     </div>
+
+    <TopUpAllowanceSheet
+      :plan-id="plan?.id ?? null"
+      :allowance="toppingUp"
+      @close="toppingUp = null"
+      @applied="afterAdjustment"
+    />
 
     <OverspendSheet
       :week-id="overspendWeekId"

@@ -176,6 +176,27 @@ week's budget rather than quietly enlarging the plan.
 Money reserved and never spent is the mirror image: it is still in the bank, so
 it joins the month-end leftover below rather than disappearing.
 
+### An allowance that has run out
+
+Spilling into day-to-day money is the honest default, but it is a poor
+*decision* — the week silently pays for a category that was supposed to be
+ring-fenced. So an exhausted allowance is offered as a choice on the Budget
+screen, and whichever pot gives up the money shrinks by exactly what the
+allowance grew:
+
+| Source | What moves |
+|---|---|
+| Another allowance | That pot down, this one up. The plan's totals do not change at all |
+| Day-to-day money | The spending budget shrinks and the remaining weeks are re-cut |
+| Buffer | The safety net shrinks; weekly budgets untouched |
+| Save less this month | Only money not yet moved into a goal |
+| Take this month's saving back | A real withdrawal, when the money has already gone in |
+
+Every source is floored at what has already been spent, saved or paid, so an
+allowance can never hand over money it has itself already used. Once the
+top-up is applied the spending stops counting against the week, because it is
+covered by the pot again.
+
 Percentage used is close to meaningless for something spent gradually — 60%
 gone is fine on day 20 and alarming on day 3 — so each allowance also reports
 what is left **per remaining day** and whether it is running ahead of an even
@@ -581,7 +602,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 355 tests
+php artisan test           # 363 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

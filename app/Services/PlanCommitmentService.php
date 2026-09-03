@@ -31,6 +31,13 @@ class PlanCommitmentService
     /** Where the money for a new commitment comes from. */
     public const SOURCES = ['spending', 'buffer', 'savings', 'savings_withdrawal', 'debts'];
 
+    /**
+     * Topping up an allowance can also come out of another allowance, which a
+     * new debt cannot: two pots of the same kind, one handing over to the
+     * other.
+     */
+    public const TOP_UP_SOURCES = ['spending', 'buffer', 'savings', 'savings_withdrawal', 'allowance'];
+
     public function __construct(
         private readonly FinancialPlanService $plans,
         private readonly BudgetCalculationService $budgets,
@@ -309,6 +316,275 @@ class PlanCommitmentService
 
             $left = Money::sub($left, $take);
         }
+    }
+
+    /**
+     * Allowances that have been spent past the amount reserved for them.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function overspentAllowances(MonthlyPlan $plan, ?CarbonImmutable $today = null): array
+    {
+        return collect($this->budgets->allowanceSummaries($plan, $today))
+            ->filter(fn (array $row) => Money::isPositive($row['over_by']))
+            ->map(fn (array $row) => [
+                'category_id' => $row['category_id'],
+                'name' => $row['name'],
+                'icon' => $row['icon'],
+                'color' => $row['color'],
+                'allocated' => $row['allocated'],
+                'spent' => $row['spent'],
+                'over_by' => $row['over_by'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Each way of covering an allowance that has run out.
+     *
+     * @return array<string, mixed>
+     */
+    public function topUpOptionsFor(MonthlyPlan $plan, int $categoryId, ?string $amount = null): array
+    {
+        $state = $this->budgets->allowanceStateFor($plan, $categoryId);
+
+        if ($state === null) {
+            throw new RuntimeException('That category is not an allowance in this plan.');
+        }
+
+        $summary = collect($this->budgets->allowanceSummaries($plan))
+            ->firstWhere('category_id', $categoryId);
+
+        $amount = Money::of($amount ?? ($summary['over_by'] ?? '0.00'));
+
+        $spending = Money::of($plan->spending_budget);
+        $buffer = $plan->bufferRemaining();
+        $fromSavings = $this->reducibleSavings($plan);
+        $reclaimable = $this->reclaimableSavings($plan);
+        $others = $this->otherAllowances($plan, $categoryId);
+        $fromAllowances = Money::sum(array_column($others, 'available'));
+
+        return [
+            'plan_label' => $plan->label(),
+            'category' => [
+                'category_id' => $categoryId,
+                'name' => $summary['name'] ?? 'Allowance',
+                'allocated' => $state['allocated'],
+                'spent' => $state['spent'],
+                'over_by' => $summary['over_by'] ?? '0.00',
+            ],
+            'amount' => $amount,
+            'other_allowances' => $others,
+            'options' => [
+                [
+                    'source' => 'allowance',
+                    'label' => 'Move it from another allowance',
+                    'description' => 'One pot hands over to the other. Nothing else in the plan changes.',
+                    'available' => Money::gte($fromAllowances, $amount),
+                    'unavailable_reason' => Money::gte($fromAllowances, $amount)
+                        ? null
+                        : ($others === []
+                            ? 'You have no other allowance to move it from.'
+                            : 'Only '.$fromAllowances.' can be moved out of your other allowances.'),
+                    'current' => $fromAllowances,
+                    'needs_choice' => true,
+                ],
+                [
+                    'source' => 'spending',
+                    'label' => 'Take it from day-to-day money',
+                    'description' => 'This is what already happens if you leave it — reserving it makes it deliberate.',
+                    'available' => Money::gte($spending, $amount),
+                    'unavailable_reason' => Money::gte($spending, $amount)
+                        ? null
+                        : 'Only '.$spending.' is left to spend this cycle.',
+                    'current' => $spending,
+                    'resulting_spending_budget' => Money::sub($spending, $amount),
+                ],
+                [
+                    'source' => 'buffer',
+                    'label' => 'Take it from the buffer',
+                    'description' => 'Your safety net shrinks. Weekly budgets stay as they are.',
+                    'available' => Money::gte($buffer, $amount),
+                    'unavailable_reason' => Money::gte($buffer, $amount)
+                        ? null
+                        : 'Only '.$buffer.' of buffer is left.',
+                    'current' => $buffer,
+                    'resulting_buffer' => Money::sub($buffer, $amount),
+                ],
+                [
+                    'source' => 'savings',
+                    'label' => 'Save less this month',
+                    'description' => 'Only money not yet moved into a goal.',
+                    'available' => Money::gte($fromSavings, $amount),
+                    'unavailable_reason' => Money::gte($fromSavings, $amount)
+                        ? null
+                        : 'Only '.$fromSavings.' of this month\'s savings can still be moved.',
+                    'current' => $fromSavings,
+                    'resulting_savings' => Money::floorAtZero(Money::sub($plan->savings, $amount)),
+                ],
+                [
+                    'source' => 'savings_withdrawal',
+                    'label' => "Take back this month's saving",
+                    'description' => 'Moves money you have already put into a goal back out again.',
+                    'available' => Money::gte($reclaimable, $amount),
+                    'unavailable_reason' => Money::gte($reclaimable, $amount)
+                        ? null
+                        : ($reclaimable === '0.00'
+                            ? 'Nothing has been put aside this cycle to take back.'
+                            : 'Only '.$reclaimable.' was put aside this cycle.'),
+                    'current' => $reclaimable,
+                    'resulting_savings' => Money::floorAtZero(Money::sub($plan->savings, $amount)),
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Add to an allowance and take the money from the chosen source. Both
+     * figures move together, so the plan still adds up afterwards.
+     *
+     * @return array<string, mixed>
+     */
+    public function topUpAllowance(
+        MonthlyPlan $plan,
+        int $categoryId,
+        string $amount,
+        string $source,
+        ?int $fromCategoryId = null,
+        ?string $reason = null,
+    ): array {
+        $amount = Money::of($amount);
+
+        if (! Money::isPositive($amount)) {
+            throw new RuntimeException('Enter an amount greater than zero.');
+        }
+
+        if (! in_array($source, self::TOP_UP_SOURCES, true)) {
+            throw new RuntimeException('Choose where the money should come from.');
+        }
+
+        $row = $plan->budgetCategories()
+            ->where('category_id', $categoryId)
+            ->where('is_allowance', true)
+            ->first();
+
+        if ($row === null) {
+            throw new RuntimeException('That category is not an allowance in this plan.');
+        }
+
+        $option = collect($this->topUpOptionsFor($plan, $categoryId, $amount)['options'])
+            ->firstWhere('source', $source);
+
+        if ($option === null || ! $option['available']) {
+            throw new RuntimeException(
+                $option['unavailable_reason'] ?? 'That is not enough to cover it.'
+            );
+        }
+
+        return DB::transaction(function () use ($plan, $row, $categoryId, $amount, $source, $fromCategoryId, $reason) {
+            $before = Money::of($row->budget_amount);
+
+            if ($source === 'allowance') {
+                $this->takeFromAllowance($plan, $amount, $categoryId, $fromCategoryId);
+            }
+
+            $row->forceFill(['budget_amount' => Money::add($before, $amount)])->save();
+
+            match ($source) {
+                // The allowance total grows, so the weekly pool shrinks by
+                // itself; the weeks are re-cut below.
+                'spending', 'allowance' => null,
+                'buffer' => $plan->forceFill([
+                    'buffer' => Money::floorAtZero(Money::sub($plan->buffer, $amount)),
+                ])->save(),
+                'savings' => $this->takeFromSavings($plan, $amount),
+                'savings_withdrawal' => $this->reclaimFromSavings(
+                    $plan,
+                    $amount,
+                    ($row->category?->name ?? 'an allowance').' allowance',
+                ),
+            };
+
+            $plan = $this->plans->recalculate($plan->fresh());
+
+            if ($source === 'spending') {
+                $this->reduceRemainingWeeks($plan, $amount);
+            }
+
+            $this->audit->record(
+                $plan->user_id,
+                'plan.allowance_topped_up',
+                $plan,
+                ['allowance' => $before],
+                [
+                    'category_id' => $categoryId,
+                    'allowance' => Money::add($before, $amount),
+                    'amount' => $amount,
+                    'source' => $source,
+                    'from_category_id' => $fromCategoryId,
+                ],
+                $reason,
+            );
+
+            return [
+                'plan' => $plan->fresh(),
+                'amount' => $amount,
+                'source' => $source,
+            ];
+        });
+    }
+
+    /**
+     * The allowances that could hand money over, and how much each can spare
+     * without dipping below what it has already spent.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function otherAllowances(MonthlyPlan $plan, int $exceptCategoryId): array
+    {
+        return collect($this->budgets->allowanceSummaries($plan))
+            ->reject(fn (array $row) => $row['category_id'] === $exceptCategoryId)
+            ->map(fn (array $row) => [
+                'category_id' => $row['category_id'],
+                'name' => $row['name'],
+                'allocated' => $row['allocated'],
+                'spent' => $row['spent'],
+                // Money already spent cannot be handed over.
+                'available' => Money::floorAtZero(Money::sub($row['allocated'], $row['spent'])),
+            ])
+            ->filter(fn (array $row) => Money::isPositive($row['available']))
+            ->values()
+            ->all();
+    }
+
+    private function takeFromAllowance(
+        MonthlyPlan $plan,
+        string $amount,
+        int $toCategoryId,
+        ?int $fromCategoryId,
+    ): void {
+        if ($fromCategoryId === null) {
+            throw new RuntimeException('Choose which allowance the money comes from.');
+        }
+
+        if ($fromCategoryId === $toCategoryId) {
+            throw new RuntimeException('An allowance cannot top itself up.');
+        }
+
+        $source = collect($this->otherAllowances($plan, $toCategoryId))
+            ->firstWhere('category_id', $fromCategoryId);
+
+        if ($source === null || Money::lt($source['available'], $amount)) {
+            throw new RuntimeException(
+                'That allowance only has '.($source['available'] ?? '0.00').' left to give.'
+            );
+        }
+
+        $plan->budgetCategories()
+            ->where('category_id', $fromCategoryId)
+            ->where('is_allowance', true)
+            ->update(['budget_amount' => Money::sub($source['allocated'], $amount)]);
     }
 
     /** Savings that could still be moved: planned less what is already saved. */
