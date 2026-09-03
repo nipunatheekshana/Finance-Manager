@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ArrowRight, Ban, PiggyBank, Shuffle, Wallet } from 'lucide-vue-next'
+import { ArrowRight, Ban, PiggyBank, Shuffle, Wallet, Undo2 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import SelectField from '@/components/common/SelectField.vue'
@@ -46,6 +46,28 @@ watch(
     }
   },
 )
+
+/**
+ * The week is over because a pot ran out. Top the pot up instead: the excess
+ * leaves the week entirely, and the week's own money is never touched.
+ */
+function topUp(spill: { category_id: number; name: string; spilled: string }): void {
+  if (!options.value) return
+
+  ui.topUp = {
+    planId: options.value.plan_id,
+    allowance: {
+      category_id: spill.category_id,
+      name: spill.name,
+      icon: 'circle',
+      color: 'slate',
+      allocated: '0.00',
+      spent: '0.00',
+      over_by: spill.spilled,
+    },
+  }
+  emit('close')
+}
 
 async function apply(): Promise<void> {
   if (props.weekId === null || selected.value === null) return
@@ -93,6 +115,26 @@ async function apply(): Promise<void> {
           Spent <MoneyText :amount="options.week.spent" size="xs" class="font-semibold" />
           of <MoneyText :amount="options.week.budget" size="xs" class="font-semibold" />
         </p>
+      </div>
+
+      <!-- Lead with the cause. Reducing another category to cover a week
+           that is only over because Smoking ran out fixes the wrong thing. -->
+      <div
+        v-for="spill in options.spills"
+        :key="spill.category_id"
+        class="mb-4 rounded-[var(--radius-card)] border border-brand/40 bg-brand-soft p-3.5"
+      >
+        <p class="text-sm font-semibold text-ink">
+          <MoneyText :amount="spill.spilled" size="sm" class="font-bold" /> of this is
+          {{ spill.name }} running past its allowance.
+        </p>
+        <p class="mt-0.5 text-sm text-ink-muted">
+          Top up {{ spill.name }} from another pot and it leaves this week altogether.
+        </p>
+        <button type="button" class="btn btn-primary mt-3 !min-h-10 !text-sm" @click="topUp(spill)">
+          <Undo2 class="h-4 w-4" aria-hidden="true" />
+          Top up {{ spill.name }} instead
+        </button>
       </div>
 
       <div class="space-y-2.5" role="radiogroup" aria-label="What would you like to do?">

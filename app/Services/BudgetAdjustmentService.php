@@ -93,9 +93,13 @@ class BudgetAdjustmentService
         ];
 
         return [
+            'plan_id' => $plan->id,
             'week' => $summary,
             'over_by' => $overBy,
             'is_over_budget' => Money::isPositive($overBy),
+            // When an allowance ran out and the excess landed here, the real
+            // fix is topping that pot up, not moving the week's money around.
+            'spills' => $this->budgets->allowanceSpillBetween($plan, $week->start_date, $week->end_date),
             'options' => $options,
         ];
     }

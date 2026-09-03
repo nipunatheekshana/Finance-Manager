@@ -79,6 +79,7 @@ class ExpenseImpactService
             'amount' => $amount,
             'date' => $on->toDateString(),
             'has_plan' => true,
+            'plan_id' => $plan->id,
             'week' => $weekImpact,
             'month' => $monthImpact,
             'category' => $categoryImpact,

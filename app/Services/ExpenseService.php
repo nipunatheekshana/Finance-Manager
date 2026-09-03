@@ -10,6 +10,7 @@ use App\Models\WeeklyBudget;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Creating, editing and removing expenses.
@@ -25,6 +26,8 @@ class ExpenseService
         private readonly DebtPaymentService $debtPayments,
         private readonly AlertService $alerts,
         private readonly AuditService $audit,
+        private readonly PlanCommitmentService $commitments,
+        private readonly FinancialPlanService $plans,
     ) {}
 
     /**
@@ -48,6 +51,12 @@ class ExpenseService
             $date = CarbonImmutable::parse($data['expense_date'] ?? CarbonImmutable::today())->startOfDay();
             $paymentMethod = $user->paymentMethods()->findOrFail($data['payment_method_id']);
             $debtId = $this->resolveDebtId($user, $paymentMethod, $data);
+
+            // The pot grows before the expense lands in it, inside the same
+            // transaction: if the expense cannot be saved, no money has moved.
+            if (! empty($data['allowance_top_up'])) {
+                $this->topUpBeforeSaving($user, (int) $data['category_id'], $date, $data['allowance_top_up']);
+            }
 
             $expense = Expense::create([
                 'user_id' => $user->id,
@@ -148,6 +157,35 @@ class ExpenseService
         // Removing the spending can take the week back under its budget, and
         // the warning has to go with it.
         $this->alerts->afterExpenseDeleted($expense);
+    }
+
+    /**
+     * @param  array{source: string, amount: mixed, from_category_id?: mixed}  $topUp
+     */
+    private function topUpBeforeSaving(User $user, int $categoryId, CarbonImmutable $date, array $topUp): void
+    {
+        $plan = $this->plans->activePlanFor($user, $date);
+
+        if ($plan === null) {
+            throw ValidationException::withMessages([
+                'allowance_top_up' => 'There is no active plan to move money within.',
+            ]);
+        }
+
+        try {
+            $this->commitments->topUpAllowance(
+                $plan,
+                $categoryId,
+                Money::of($topUp['amount']),
+                $topUp['source'],
+                isset($topUp['from_category_id']) ? (int) $topUp['from_category_id'] : null,
+                'Covering an expense as it was saved',
+            );
+        } catch (\RuntimeException $e) {
+            // A refusal the user can act on — not enough in that pot — rather
+            // than a server fault.
+            throw ValidationException::withMessages(['allowance_top_up' => $e->getMessage()]);
+        }
     }
 
     /**

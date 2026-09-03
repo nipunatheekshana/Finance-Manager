@@ -193,7 +193,21 @@ allowance grew:
 | Take this month's saving back | A real withdrawal, when the money has already gone in |
 
 Every source is floored at what has already been spent, saved or paid, so an
-allowance can never hand over money it has itself already used. Once the
+allowance can never hand over money it has itself already used.
+
+Better still is deciding *before* the save. When the expense preview shows a
+pot running out, the form asks right there — *"Cover the extra 9,000 from…"* —
+another allowance, the buffer, savings, or this week's money (the default, and
+what happens if nothing is chosen). The top-up and the expense are written in
+**one transaction**: the pot grows before the spending lands in it, and if the
+expense cannot be saved no money has moved. Nothing has to be repaired
+afterwards because nothing was ever wrong.
+
+The week's own overspend sheet knows about this too. When a week is over
+*because* a pot ran out, it leads with the cause — *"6,600 of this is Smoking
+running past its allowance"* — and offers to top that pot up instead of moving
+the week's money around, since that is the fix the situation actually calls
+for. Once the
 top-up is applied the spending stops counting against the week, because it is
 covered by the pot again.
 
@@ -609,7 +623,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 372 tests
+php artisan test           # 378 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

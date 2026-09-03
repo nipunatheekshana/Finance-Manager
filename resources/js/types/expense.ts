@@ -51,6 +51,12 @@ export interface ExpenseDraft {
   description?: string
   debt_id?: number | null
   client_uuid?: string
+  /** Grow the category's pot as part of the save, so the excess never hits the week. */
+  allowance_top_up?: {
+    source: import('./budget').TopUpSource
+    amount: string
+    from_category_id?: number | null
+  }
 }
 
 export interface ExpenseFilters {
@@ -117,6 +123,7 @@ export interface ExpenseImpact {
   amount: Money
   date?: string
   has_plan: boolean
+  plan_id?: number
   week: BudgetProjection | null
   month: BudgetProjection | null
   category: CategoryProjection | null

@@ -120,6 +120,50 @@ class BudgetCalculationService
         ];
     }
 
+    /**
+     * Spending in a window that fell past an allowance and landed on the week.
+     *
+     * The same coverage rule as discretionarySpentBetween(), reported per
+     * category instead of netted off — so a week that is over can say *why*.
+     *
+     * @return list<array{category_id: int, name: string, spilled: string}>
+     */
+    public function allowanceSpillBetween(MonthlyPlan $plan, CarbonInterface $start, CarbonInterface $end): array
+    {
+        $allowances = $this->allowanceAmounts($plan);
+
+        if ($allowances === []) {
+            return [];
+        }
+
+        $categoryIds = array_keys($allowances);
+        $cycleStart = CarbonImmutable::instance($plan->cycle_start_date)->startOfDay();
+        $windowStart = CarbonImmutable::instance($start)->startOfDay();
+
+        $inWindow = $this->categorySpend($plan->user_id, $categoryIds, $start, $end);
+        $before = $windowStart->lte($cycleStart)
+            ? []
+            : $this->categorySpend($plan->user_id, $categoryIds, $cycleStart, $windowStart->subDay());
+
+        $spills = [];
+
+        foreach ($allowances as $categoryId => $amount) {
+            $spentInWindow = Money::of($inWindow[$categoryId] ?? 0);
+            $stillAvailable = Money::floorAtZero(Money::sub($amount, Money::of($before[$categoryId] ?? 0)));
+            $spilled = Money::floorAtZero(Money::sub($spentInWindow, $stillAvailable));
+
+            if (Money::isPositive($spilled)) {
+                $spills[] = [
+                    'category_id' => $categoryId,
+                    'name' => $this->allowanceNameFor($plan, $categoryId),
+                    'spilled' => $spilled,
+                ];
+            }
+        }
+
+        return $spills;
+    }
+
     /** The display name of an allowance category in this plan. */
     public function allowanceNameFor(MonthlyPlan $plan, int $categoryId): string
     {

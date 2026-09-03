@@ -10,19 +10,19 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import CategoryBudgetList from '@/components/dashboard/CategoryBudgetList.vue'
 import AllowanceList from '@/components/budgets/AllowanceList.vue'
-import TopUpAllowanceSheet from '@/components/budgets/TopUpAllowanceSheet.vue'
 import OverspendSheet from '@/components/budgets/OverspendSheet.vue'
 import WeeklyReviewSheet from '@/components/budgets/WeeklyReviewSheet.vue'
 import { useBudgetStore } from '@/stores/budget'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useUiStore } from '@/stores/ui'
 import { formatDateRange } from '@/composables/useDates'
 import type { OverspentAllowance } from '@/types'
 
 const budget = useBudgetStore()
 const dashboard = useDashboardStore()
+const ui = useUiStore()
 
 const overspendWeekId = ref<number | null>(null)
-const toppingUp = ref<OverspentAllowance | null>(null)
 const reviewWeekId = ref<number | null>(null)
 
 const plan = computed(() => budget.plan)
@@ -256,7 +256,7 @@ async function afterAdjustment(): Promise<void> {
             <button
               type="button"
               class="btn btn-primary mt-3 !min-h-10 !text-sm"
-              @click="toppingUp = row"
+              @click="plan && (ui.topUp = { planId: plan.id, allowance: row })"
             >
               Top it up
             </button>
@@ -287,13 +287,6 @@ async function afterAdjustment(): Promise<void> {
         />
       </section>
     </div>
-
-    <TopUpAllowanceSheet
-      :plan-id="plan?.id ?? null"
-      :allowance="toppingUp"
-      @close="toppingUp = null"
-      @applied="afterAdjustment"
-    />
 
     <OverspendSheet
       :week-id="overspendWeekId"

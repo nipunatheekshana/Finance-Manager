@@ -44,6 +44,20 @@ class ExpenseRequest extends FormRequest
             'expense_date' => ['sometimes', 'date', 'before_or_equal:'.now()->addDay()->toDateString()],
             'description' => ['nullable', 'string', 'max:255'],
             'client_uuid' => ['nullable', 'uuid'],
+
+            // Decided before the save, when the preview shows the pot running
+            // out: where the excess comes from, so no banner ever has to fire.
+            'allowance_top_up' => ['nullable', 'array'],
+            'allowance_top_up.source' => [
+                'required_with:allowance_top_up',
+                Rule::in(\App\Services\PlanCommitmentService::TOP_UP_SOURCES),
+            ],
+            'allowance_top_up.amount' => ['required_with:allowance_top_up', 'numeric', 'gt:0', 'decimal:0,2'],
+            'allowance_top_up.from_category_id' => [
+                'nullable',
+                'required_if:allowance_top_up.source,allowance',
+                Rule::exists('categories', 'id')->where('user_id', $userId),
+            ],
         ];
     }
 

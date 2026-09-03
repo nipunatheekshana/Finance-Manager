@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import type { OverspentAllowance } from '@/types'
 import type { ThemePreference } from '@/types'
 
 let toastId = 0
@@ -37,6 +38,8 @@ export const useUiStore = defineStore('ui', () => {
   const overspendWeekId = ref<number | null>(null)
   /** "Install this app", opened from either menu. */
   const installSheetOpen = ref(false)
+  /** An allowance to top up, with the plan it belongs to. */
+  const topUp = ref<{ planId: number; allowance: OverspentAllowance } | null>(null)
 
   const prefersDark = computed(() => {
     if (theme.value === 'dark') return true
@@ -119,6 +122,7 @@ export const useUiStore = defineStore('ui', () => {
     updateAvailable,
     overspendWeekId,
     installSheetOpen,
+    topUp,
     applyTheme,
     setTheme,
     toast,

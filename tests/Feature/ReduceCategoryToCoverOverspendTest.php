@@ -131,6 +131,28 @@ class ReduceCategoryToCoverOverspendTest extends TestCase
             ->assertStatus(422);
     }
 
+    #[Test]
+    public function the_week_says_when_an_allowance_spill_is_the_cause(): void
+    {
+        [$user, $plan, $week] = $this->overspentWeekWithAllowance('1000.00');
+
+        // 5,000 reserved for Transport; 7,500 spent, so 2,500 landed on the week.
+        Expense::create([
+            'user_id' => $user->id,
+            'category_id' => $this->categoryId($user, 'Transport'),
+            'payment_method_id' => $this->paymentMethodId($user, 'Cash'),
+            'amount' => '7500.00',
+            'expense_date' => '2026-08-28',
+        ]);
+
+        $options = app(BudgetAdjustmentService::class)->optionsFor($week->fresh());
+
+        $this->assertSame($plan->id, $options['plan_id']);
+        $this->assertCount(1, $options['spills']);
+        $this->assertSame('Transport', $options['spills'][0]['name']);
+        $this->assertSame('2500.00', $options['spills'][0]['spilled']);
+    }
+
     private function reduce(WeeklyBudget $week, User $user, string $category, string $amount): void
     {
         app(BudgetAdjustmentService::class)->apply($week, AdjustmentType::Category, [

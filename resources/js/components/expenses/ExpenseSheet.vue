@@ -16,7 +16,8 @@ import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
 import { amountToNumber, formatLKR } from '@/composables/useCurrency'
 import { todayIso } from '@/composables/useDates'
-import type { ExpenseDraft, ExpenseImpact, WeekStateAfterSave } from '@/types'
+import { api } from '@/services/api'
+import type { ExpenseDraft, ExpenseImpact, TopUpOptions, TopUpSource, WeekStateAfterSave } from '@/types'
 
 const ui = useUiStore()
 const expenses = useExpenseStore()
@@ -54,14 +55,52 @@ const paymentOptions = computed(() =>
   expenses.activePaymentMethods.map((method) => ({ value: method.id, label: method.name })),
 )
 
+/**
+ * When the preview shows the pot running out, the user chooses here — before
+ * the save — where the excess comes from. "week" is the default and is what
+ * happens if nothing is chosen: it lands on day-to-day money.
+ */
+const coverSource = ref<TopUpSource | 'week'>('week')
+const coverFrom = ref<number | null>(null)
+const coverOptions = ref<TopUpOptions | null>(null)
+
+const spill = computed(() => impact.value?.allowance?.from_day_to_day ?? '0.00')
+const needsCover = computed(() => amountToNumber(spill.value) > 0 && impact.value?.plan_id !== undefined)
+
 const canSubmit = computed(
   () =>
     !submitting.value &&
     amount.value !== '' &&
     Number.parseFloat(amount.value) > 0 &&
     categoryId.value !== null &&
-    paymentMethodId.value !== null,
+    paymentMethodId.value !== null &&
+    (coverSource.value !== 'allowance' || coverFrom.value !== null),
 )
+
+let coverTimer: ReturnType<typeof setTimeout> | undefined
+watch([spill, () => impact.value?.plan_id, categoryId], ([amountOver, planId, category]) => {
+  clearTimeout(coverTimer)
+
+  if (amountToNumber(amountOver) <= 0 || planId === undefined || category === null) {
+    coverOptions.value = null
+    coverSource.value = 'week'
+    coverFrom.value = null
+    return
+  }
+
+  coverTimer = setTimeout(async () => {
+    try {
+      const response = await api.get<{ data: TopUpOptions }>(
+        `/monthly-plans/${planId}/allowance-top-ups/${category}/options`,
+        { params: { amount: amountOver } },
+      )
+      coverOptions.value = response.data
+      coverFrom.value ??= response.data.other_allowances[0]?.category_id ?? null
+    } catch {
+      coverOptions.value = null
+    }
+  }, 300)
+})
 
 let impactTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -177,6 +216,15 @@ async function submit(): Promise<void> {
     payment_method_id: paymentMethodId.value,
     expense_date: expenseDate.value,
     description: description.value.trim() || undefined,
+    ...(needsCover.value && coverSource.value !== 'week'
+      ? {
+          allowance_top_up: {
+            source: coverSource.value,
+            amount: spill.value,
+            from_category_id: coverSource.value === 'allowance' ? coverFrom.value : undefined,
+          },
+        }
+      : {}),
   }
 
   let savedWeek: WeekStateAfterSave | null = null
@@ -299,7 +347,60 @@ async function confirmDelete(): Promise<void> {
               </p>
 
               <!-- Where the money actually comes from, when it is split. -->
-              <p v-if="partlyPaidByAllowance && impact.allowance" class="mt-0.5 text-ink-muted">
+              <!-- The pot is running out. Decide now where the extra comes
+                   from, so nothing has to be repaired afterwards. -->
+              <div v-if="needsCover && impact.allowance" class="mt-3 border-t border-line/60 pt-3">
+                <p class="text-sm font-semibold text-ink">
+                  Cover the extra
+                  <MoneyText :amount="spill" size="sm" class="font-bold" /> from…
+                </p>
+
+                <div class="mt-2 space-y-1.5" role="radiogroup" aria-label="Where the extra comes from">
+                  <label class="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-field)] p-2 text-sm hover:bg-raised/60">
+                    <input v-model="coverSource" type="radio" value="week" class="mt-0.5 accent-[rgb(var(--color-brand))]" />
+                    <span>
+                      <span class="block font-medium text-ink">This week's day-to-day money</span>
+                      <span class="block text-xs text-ink-muted">What happens if you choose nothing.</span>
+                    </span>
+                  </label>
+
+                  <label
+                    v-for="option in (coverOptions?.options ?? []).filter((row) => row.source !== 'spending')"
+                    :key="option.source"
+                    class="flex items-start gap-2.5 rounded-[var(--radius-field)] p-2 text-sm"
+                    :class="option.available ? 'cursor-pointer hover:bg-raised/60' : 'opacity-60'"
+                  >
+                    <input
+                      v-model="coverSource"
+                      type="radio"
+                      :value="option.source"
+                      :disabled="!option.available"
+                      class="mt-0.5 accent-[rgb(var(--color-brand))]"
+                    />
+                    <span>
+                      <span class="block font-medium text-ink">{{ option.label }}</span>
+                      <span class="block text-xs text-ink-muted">
+                        {{ option.available ? option.description : option.unavailable_reason }}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <SelectField
+                  v-if="coverSource === 'allowance' && coverOptions?.other_allowances.length"
+                  v-model="coverFrom"
+                  class="mt-2"
+                  label="Move it from"
+                  :options="
+                    coverOptions.other_allowances.map((row) => ({
+                      value: row.category_id,
+                      label: `${row.name} — ${row.available} spare`,
+                    }))
+                  "
+                />
+              </div>
+
+              <p v-if="partlyPaidByAllowance && impact.allowance && coverSource === 'week'" class="mt-0.5 text-ink-muted">
                 <MoneyText :amount="impact.allowance.covered" size="sm" class="font-semibold" />
                 from your {{ impact.allowance.name }} allowance, the last
                 <MoneyText :amount="impact.allowance.from_day_to_day" size="sm" class="font-semibold" />

@@ -7,6 +7,7 @@ import InstallSheet from './InstallSheet.vue'
 import ExpenseSheet from '@/components/expenses/ExpenseSheet.vue'
 import AffordabilitySheet from '@/components/dashboard/AffordabilitySheet.vue'
 import OverspendSheet from '@/components/budgets/OverspendSheet.vue'
+import TopUpAllowanceSheet from '@/components/budgets/TopUpAllowanceSheet.vue'
 import { useExpenseStore } from '@/stores/expenses'
 import { useUiStore } from '@/stores/ui'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -52,6 +53,14 @@ onMounted(() => {
     <ExpenseSheet />
     <InstallSheet :open="ui.installSheetOpen" @close="ui.installSheetOpen = false" />
     <AffordabilitySheet />
+
+    <!-- Moving money into a pot that ran out, from wherever it was noticed. -->
+    <TopUpAllowanceSheet
+      :plan-id="ui.topUp?.planId ?? null"
+      :allowance="ui.topUp?.allowance ?? null"
+      @close="ui.topUp = null"
+      @applied="onOverspendResolved"
+    />
 
     <!-- Opens the moment an expense tips a week over budget. -->
     <OverspendSheet

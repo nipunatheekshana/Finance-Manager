@@ -299,9 +299,12 @@ export interface AdjustmentOption {
 }
 
 export interface AdjustmentOptions {
+  plan_id: number
   week: WeeklySummary
   over_by: Money
   is_over_budget: boolean
+  /** Allowance excess that landed on this week — the real cause, when present. */
+  spills: Array<{ category_id: number; name: string; spilled: Money }>
   options: AdjustmentOption[]
 }
 
