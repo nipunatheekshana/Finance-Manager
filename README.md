@@ -299,6 +299,13 @@ that caused it clears it too. Every path that changes a week re-checks its
 alerts inside `BudgetAdjustmentService`, so no caller can leave a banner
 contradicting the figures beside it.
 
+`php artisan finance:repair-week-transfers` completes adjustments made before
+the credit half existed. It reads the audit trail rather than guessing from the
+figures — the fixed code records `source_week_budget` beside every change, and
+its absence is what marks an old one — and writes its own marker, so a second
+run credits nothing twice. `--reverse --adjustment=<id>` undoes one instead,
+for the case where the wrong thing was moved in the first place.
+
 "Take it from next week" is a **move**, so it has two halves: the later week
 gives the money up and the overspent week receives it. Only the first half
 existed at one point, which left the user poorer next week and still over this
@@ -602,7 +609,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 363 tests
+php artisan test           # 372 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

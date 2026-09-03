@@ -352,6 +352,27 @@ class AlertService
             return;
         }
 
+        $reference = 'category:'.$categoryId;
+
+        // An allowance has its own alert, which says where the money comes
+        // from and how to fix it. A second banner about the same category,
+        // with a different figure, only adds noise.
+        if ($this->budgets->allowanceStateFor($plan, $categoryId) !== null) {
+            $this->withdraw($user, AlertType::CategoryBudgetExceeded, $reference);
+            $this->withdraw($user, AlertType::CategoryBudgetWarning, $reference);
+
+            return;
+        }
+
+        // Each state withdraws the alerts that belong to the others.
+        if ($summary['status'] !== 'over') {
+            $this->withdraw($user, AlertType::CategoryBudgetExceeded, $reference);
+        }
+
+        if ($summary['status'] !== 'warning') {
+            $this->withdraw($user, AlertType::CategoryBudgetWarning, $reference);
+        }
+
         if ($summary['status'] === 'over') {
             $this->raise(
                 $user,
@@ -622,22 +643,32 @@ class AlertService
     private function checkAllowances(User $user, \App\Models\MonthlyPlan $plan, CarbonImmutable $today): void
     {
         foreach ($this->budgets->allowanceSummaries($plan, $today) as $allowance) {
+            $reference = 'allowance:'.$allowance['category_id'];
+
             if ($allowance['status'] === 'over') {
                 $this->raise(
                     $user,
                     AlertType::AllowanceRunningOut,
                     $allowance['name'].' allowance is used up',
                     'You are LKR '.number_format((float) $allowance['over_by'], 2).' past what you set aside for '
-                        .$allowance['name'].'. Anything more comes out of your day-to-day money.',
+                        .$allowance['name'].'. Until you top it up, the difference comes out of your day-to-day money.',
                     AlertSeverity::Critical,
-                    reference: 'allowance:'.$allowance['category_id'],
+                    reference: $reference,
                     data: ['category_id' => $allowance['category_id']],
-                    actionLabel: 'View budget',
+                    // Straight to the fix — the Budget screen offers to move
+                    // money into this pot from another one.
+                    actionLabel: 'Top it up',
                     actionRoute: '/budget',
                     on: $today,
                 );
 
                 continue;
+            }
+
+            // Topped up, or the expense was corrected: the warning is no longer
+            // true and has to go.
+            if (! $allowance['ahead_of_pace']) {
+                $this->withdraw($user, AlertType::AllowanceRunningOut, $reference);
             }
 
             // Spending faster than the cycle is passing, with enough of the
