@@ -114,13 +114,28 @@ class OverspendAdjustmentTest extends TestCase
     }
 
     #[Test]
-    public function choosing_a_category_reduces_that_categorys_budget(): void
+    public function choosing_an_allowance_moves_the_money_out_of_that_pot(): void
     {
         [$user, $plan] = $this->overspentPlan();
         $week = $plan->weeklyBudgets->firstWhere('week_number', 1);
 
-        $user->categories()->where('name', 'Entertainment')->update(['monthly_budget' => '8000.00']);
+        // An allowance holds real money, so it has something to give. A plain
+        // monthly_budget is only a warning line and is refused — covered in
+        // ReduceCategoryToCoverOverspendTest.
         $categoryId = $this->categoryId($user, 'Entertainment');
+
+        // Reserved for this cycle, the way the planner's Allowances step does
+        // it — the standing category toggle only affects future plans.
+        $plan->budgetCategories()->updateOrCreate(
+            ['category_id' => $categoryId],
+            ['is_allowance' => true, 'budget_amount' => '8000.00'],
+        );
+
+        app(\App\Services\FinancialPlanService::class)->recalculate($plan->fresh());
+
+        $overBy = app(\App\Services\BudgetCalculationService::class)
+            ->weeklySummary($week->fresh())['over_by'];
+        $weekBefore = $week->fresh()->effectiveBudget();
 
         $this->actingAs($user)
             ->postJson("/api/weekly-budgets/{$week->id}/adjustments", [
@@ -132,8 +147,14 @@ class OverspendAdjustmentTest extends TestCase
         $this->assertDatabaseHas('budget_categories', [
             'monthly_plan_id' => $plan->id,
             'category_id' => $categoryId,
-            'budget_amount' => '5500.00',
+            'budget_amount' => \App\Support\Money::sub('8000.00', $overBy),
         ]);
+
+        // The money has to arrive somewhere, and the plan re-total with it.
+        $this->assertSame(
+            \App\Support\Money::add($weekBefore, $overBy),
+            $week->fresh()->effectiveBudget(),
+        );
     }
 
     #[Test]

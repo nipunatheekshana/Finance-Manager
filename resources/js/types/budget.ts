@@ -288,6 +288,14 @@ export interface AdjustmentOption {
   resulting_amount?: Money | null
   buffer_remaining?: Money
   resulting_buffer?: Money
+  /** Allowances with enough spare to cover this week, for the category option. */
+  candidates?: Array<{
+    category_id: number
+    name: string
+    allocated: Money
+    spent: Money
+    available: Money
+  }>
 }
 
 export interface AdjustmentOptions {

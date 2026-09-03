@@ -25,6 +25,7 @@ class BudgetAdjustmentService
         private readonly BudgetCalculationService $budgets,
         private readonly AuditService $audit,
         private readonly AlertService $alerts,
+        private readonly FinancialPlanService $plans,
     ) {}
 
     /**
@@ -41,6 +42,7 @@ class BudgetAdjustmentService
 
         $nextWeek = $this->nextWeek($week);
         $bufferRemaining = $plan->bufferRemaining();
+        $candidates = $this->allowanceCandidates($plan, $overBy);
 
         $options = [
             [
@@ -72,10 +74,14 @@ class BudgetAdjustmentService
             ],
             [
                 'type' => AdjustmentType::Category->value,
-                'label' => 'Reduce another category',
-                'description' => 'Take the difference from a category budget you choose.',
-                'available' => Money::isPositive($overBy),
+                'label' => 'Take it from an allowance',
+                'description' => $candidates === []
+                    ? 'You have no allowance with money left to move.'
+                    : 'Move it out of a pot you set aside, into this week.',
+                // Only allowances hold money; a warning line frees nothing.
+                'available' => Money::isPositive($overBy) && $candidates !== [],
                 'amount' => $overBy,
+                'candidates' => $candidates,
             ],
             [
                 'type' => AdjustmentType::Ignore->value,
@@ -99,6 +105,26 @@ class BudgetAdjustmentService
      *
      * @param  array{amount?: mixed, category_id?: ?int, reason?: ?string}  $payload
      */
+    /**
+     * Allowances with money still to give, and how much each can spare.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function allowanceCandidates(MonthlyPlan $plan, string $needed): array
+    {
+        return collect($this->budgets->allowanceSummaries($plan))
+            ->map(fn (array $row) => [
+                'category_id' => $row['category_id'],
+                'name' => $row['name'],
+                'allocated' => $row['allocated'],
+                'spent' => $row['spent'],
+                'available' => Money::floorAtZero(Money::sub($row['allocated'], $row['spent'])),
+            ])
+            ->filter(fn (array $row) => Money::gte($row['available'], $needed))
+            ->values()
+            ->all();
+    }
+
     public function apply(WeeklyBudget $week, AdjustmentType $type, array $payload = []): BudgetAdjustment
     {
         $plan = $week->monthlyPlan;
@@ -229,22 +255,50 @@ class BudgetAdjustmentService
             ->where('user_id', $plan->user_id)
             ->findOrFail($categoryId);
 
-        $budgetCategory = BudgetCategory::firstOrCreate(
-            ['monthly_plan_id' => $plan->id, 'category_id' => $category->id],
-            ['budget_amount' => Money::of($category->monthly_budget ?? 0)],
-        );
+        // Only an allowance actually holds money. A plain category budget is a
+        // warning line: lowering it frees nothing, so "covering" an overspend
+        // with one moved no money at all while looking like it had.
+        $budgetCategory = BudgetCategory::query()
+            ->where('monthly_plan_id', $plan->id)
+            ->where('category_id', $category->id)
+            ->where('is_allowance', true)
+            ->first();
+
+        if ($budgetCategory === null) {
+            throw new InvalidArgumentException(
+                $category->name.' has no money set aside this cycle, so there is nothing to move. '
+                .'Only an allowance can pay for an overspend.'
+            );
+        }
 
         $original = Money::of($budgetCategory->budget_amount);
-        $adjusted = Money::floorAtZero(Money::sub($original, $amount));
 
+        // Money already spent out of the pot cannot be handed over.
+        $spent = $this->budgets->allowanceStateFor($plan, $category->id)['spent'] ?? '0.00';
+        $available = Money::floorAtZero(Money::sub($original, $spent));
+
+        if (Money::lt($available, $amount)) {
+            throw new InvalidArgumentException(
+                $category->name.' only has '.$available.' left to give — the rest is already spent.'
+            );
+        }
+
+        $adjusted = Money::sub($original, $amount);
         $budgetCategory->forceFill(['budget_amount' => $adjusted])->save();
+
+        // Less reserved means more day-to-day money, so the plan's own totals
+        // have to be re-derived before the week is credited.
+        $this->plans->recalculate($plan->fresh());
+
+        $weekBefore = $week->effectiveBudget();
+        $week->forceFill(['adjusted_amount' => Money::add($weekBefore, $amount)])->save();
 
         $this->audit->record(
             $plan->user_id,
             'budget.category_reduced',
             $budgetCategory,
-            ['budget' => $original],
-            ['budget' => $adjusted],
+            ['budget' => $original, 'source_week_budget' => $weekBefore],
+            ['budget' => $adjusted, 'source_week_budget' => $week->effectiveBudget()],
             'Covering an overspend in week '.$week->week_number,
         );
 

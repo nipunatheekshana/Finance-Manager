@@ -5,7 +5,6 @@ import BottomSheet from '@/components/common/BottomSheet.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import SelectField from '@/components/common/SelectField.vue'
 import { useBudgetStore } from '@/stores/budget'
-import { useDashboardStore } from '@/stores/dashboard'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
 import type { AdjustmentOptions, AdjustmentType } from '@/types'
@@ -14,7 +13,6 @@ const props = defineProps<{ weekId: number | null }>()
 const emit = defineEmits<{ close: []; applied: [] }>()
 
 const budget = useBudgetStore()
-const dashboard = useDashboardStore()
 const ui = useUiStore()
 
 const options = ref<AdjustmentOptions | null>(null)
@@ -149,16 +147,20 @@ async function apply(): Promise<void> {
         </button>
       </div>
 
+      <!-- Only allowances are listed: a plain category budget is a warning
+           line, so reducing it would free no money at all. The server sends
+           the pots that can actually cover this week, with what each has
+           spare. -->
       <SelectField
         v-if="selected === 'category'"
         v-model="categoryId"
         :options="
-          (dashboard.data?.categories ?? [])
-            .filter((category) => category.has_budget)
-            .map((category) => ({ value: category.category_id, label: category.name }))
+          (options?.options.find((row) => row.type === 'category')?.candidates ?? []).map(
+            (row) => ({ value: row.category_id, label: `${row.name} — ${row.available} spare` }),
+          )
         "
-        label="Which category should give up the money?"
-        placeholder="Choose a category"
+        label="Which allowance should give up the money?"
+        placeholder="Choose an allowance"
       />
 
       <p class="flex items-start gap-1.5 text-xs text-ink-subtle">

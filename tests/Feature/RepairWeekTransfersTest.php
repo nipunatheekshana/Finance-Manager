@@ -62,8 +62,29 @@ class RepairWeekTransfersTest extends TestCase
             ->assertSuccessful();
     }
 
+    #[Test]
+    public function it_also_re_totals_a_plan_after_an_allowance_adjustment(): void
+    {
+        [$plan, $adjustment] = $this->damagedTransfer('500.00', type: 'category');
+
+        // The pot was reduced but the plan's stored total never followed.
+        $plan->budgetCategories()->updateOrCreate(
+            ['category_id' => $plan->user->categories()->value('id')],
+            ['is_allowance' => true, 'budget_amount' => '4500.00'],
+        );
+        $plan->forceFill(['allowances' => '5000.00'])->save();
+
+        $this->artisan('finance:repair-week-transfers --force')->assertSuccessful();
+
+        $this->assertSame(
+            '4500.00',
+            Money::of($plan->fresh()->allowances),
+            'The stored total has to match the rows again.',
+        );
+    }
+
     /** @return array{0: MonthlyPlan, 1: BudgetAdjustment} */
-    private function damagedTransfer(string $amount): array
+    private function damagedTransfer(string $amount, string $type = 'next_week'): array
     {
         $this->freezeOn('2026-08-25');
 
@@ -88,7 +109,7 @@ class RepairWeekTransfersTest extends TestCase
             'monthly_plan_id' => $plan->id,
             'weekly_budget_id' => $weekTwo->id,
             'source_weekly_budget_id' => $weekOne->id,
-            'type' => 'next_week',
+            'type' => $type,
             'amount' => $amount,
             'original_amount' => $weekTwo->budget_amount,
             'adjusted_amount' => Money::sub($weekTwo->budget_amount, $amount),
