@@ -26,6 +26,11 @@ class BudgetAdjustmentRequest extends FormRequest
                 'nullable',
                 Rule::exists('categories', 'id')->where('user_id', $this->user()->id),
             ],
+            'savings_goal_id' => [
+                'required_if:type,savings',
+                'nullable',
+                Rule::exists('savings_goals', 'id')->where('user_id', $this->user()->id),
+            ],
             'reason' => ['nullable', 'string', 'max:255'],
         ];
     }

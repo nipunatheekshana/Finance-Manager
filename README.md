@@ -299,6 +299,17 @@ refuses a source that cannot cover the payment rather than quietly taking what
 it can. Every addition is written to the audit trail with the source that
 funded it.
 
+### A finished week's leftover
+
+Money a week did not spend stays in the cycle's total, but until now nothing
+*offered* it to the user — it simply waited for month end. The weekly review
+now asks: **add it to next week** (this week gives it up, the next receives it,
+the cycle total is unchanged) or **put it into a goal now** (a real deposit,
+with the plan's savings raised to match so the weeks still divide exactly the
+spending budget). Both are refused while the week is still running, and neither
+can move more than was actually left. Leaving it alone remains a valid choice:
+it is settled at month end with everything else.
+
 ### Nothing moves without the user
 
 When a week is overspent the app presents the options — reduce next week, use
@@ -623,7 +634,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 378 tests
+php artisan test           # 383 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/services/api'
 import type {
+  LeftoverOptions,
   AdjustmentOptions,
   AdjustmentType,
   AllocationSummary,
@@ -282,7 +283,7 @@ export const useBudgetStore = defineStore('budget', () => {
   async function applyAdjustment(
     weekId: number,
     type: AdjustmentType,
-    payload: { amount?: string; category_id?: number; reason?: string } = {},
+    payload: { amount?: string; category_id?: number; savings_goal_id?: number; reason?: string } = {},
   ): Promise<void> {
     saving.value = true
     try {
@@ -296,11 +297,15 @@ export const useBudgetStore = defineStore('budget', () => {
     }
   }
 
-  async function weeklyReview(weekId: number): Promise<{ review: WeeklyReview; options: AdjustmentOptions }> {
-    const response = await api.get<{ data: WeeklyReview; options: AdjustmentOptions }>(
-      `/weekly-budgets/${weekId}/review`,
-    )
-    return { review: response.data, options: response.options }
+  async function weeklyReview(
+    weekId: number,
+  ): Promise<{ review: WeeklyReview; options: AdjustmentOptions; leftover: LeftoverOptions }> {
+    const response = await api.get<{
+      data: WeeklyReview
+      options: AdjustmentOptions
+      leftover: LeftoverOptions
+    }>(`/weekly-budgets/${weekId}/review`)
+    return { review: response.data, options: response.options, leftover: response.leftover }
   }
 
   return {

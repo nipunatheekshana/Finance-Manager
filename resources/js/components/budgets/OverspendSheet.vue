@@ -20,7 +20,9 @@ const loading = ref(false)
 const selected = ref<AdjustmentType | null>(null)
 const categoryId = ref<number | null>(null)
 
-const ICONS: Record<AdjustmentType, unknown> = {
+// Only the overspend types appear here; the leftover types live on the
+// weekly review, which is why this is Partial.
+const ICONS: Partial<Record<AdjustmentType, unknown>> = {
   next_week: ArrowRight,
   buffer: Wallet,
   category: Shuffle,

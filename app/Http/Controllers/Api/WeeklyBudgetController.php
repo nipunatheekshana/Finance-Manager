@@ -74,6 +74,8 @@ class WeeklyBudgetController extends Controller
         return response()->json([
             'data' => $this->reports->weeklyReview($weeklyBudget),
             'options' => $this->adjustments->optionsFor($weeklyBudget),
+            // What a finished week can do with what it did not spend.
+            'leftover' => $this->adjustments->leftoverOptionsFor($weeklyBudget),
         ]);
     }
 }

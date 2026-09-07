@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\MonthlyPlan;
 use App\Models\WeeklyBudget;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -26,6 +27,7 @@ class BudgetAdjustmentService
         private readonly AuditService $audit,
         private readonly AlertService $alerts,
         private readonly FinancialPlanService $plans,
+        private readonly SavingsService $savings,
     ) {}
 
     /**
@@ -134,9 +136,13 @@ class BudgetAdjustmentService
         $plan = $week->monthlyPlan;
         $summary = $this->budgets->weeklySummary($week);
 
+        $isLeftover = in_array($type, [AdjustmentType::CarryForward, AdjustmentType::Savings], true);
+
+        // Overspend types default to what the week is over by; leftover types
+        // default to what it has left.
         $amount = isset($payload['amount'])
             ? Money::of($payload['amount'])
-            : Money::of($summary['over_by']);
+            : Money::of($isLeftover ? Money::floorAtZero($summary['remaining']) : $summary['over_by']);
 
         if (! Money::isPositive($amount) && $type !== AdjustmentType::Ignore) {
             throw new InvalidArgumentException('There is nothing to adjust.');
@@ -147,6 +153,8 @@ class BudgetAdjustmentService
             AdjustmentType::Buffer => $this->useBuffer($plan, $week, $amount, $payload),
             AdjustmentType::Category => $this->reduceCategory($plan, $week, $amount, $payload),
             AdjustmentType::Ignore => $this->recordIgnore($plan, $week, $amount, $payload),
+            AdjustmentType::CarryForward => $this->carryForward($plan, $week, $amount, $payload),
+            AdjustmentType::Savings => $this->toSavings($plan, $week, $amount, $payload),
         });
 
         // The week's figures have just changed, so whatever alert it was
@@ -155,6 +163,178 @@ class BudgetAdjustmentService
         $this->alerts->refreshWeek($week->fresh());
 
         return $adjustment;
+    }
+
+    /**
+     * What a finished week can do with the money it did not spend.
+     *
+     * @return array<string, mixed>
+     */
+    public function leftoverOptionsFor(WeeklyBudget $week, ?CarbonImmutable $today = null): array
+    {
+        $today = ($today ?? CarbonImmutable::today())->startOfDay();
+        $plan = $week->monthlyPlan;
+        $summary = $this->budgets->weeklySummary($week, $today);
+
+        $remaining = Money::floorAtZero($summary['remaining']);
+        $isPast = $today->gt(CarbonImmutable::instance($week->end_date));
+        $next = $this->nextWeek($week);
+
+        $goals = $plan->user->savingsGoals()
+            ->where('status', 'active')
+            ->orderBy('priority')
+            ->get()
+            ->map(fn ($goal) => [
+                'id' => $goal->id,
+                'name' => $goal->name,
+                'current_amount' => Money::of($goal->current_amount),
+                'target_amount' => Money::of($goal->target_amount),
+            ])
+            ->all();
+
+        $reason = match (true) {
+            ! $isPast => 'The week is still running — decide once it has finished.',
+            ! Money::isPositive($remaining) => 'Nothing was left over.',
+            default => null,
+        };
+
+        return [
+            'is_past' => $isPast,
+            'remaining' => $remaining,
+            'can_carry' => $reason === null && $next !== null,
+            'can_save' => $reason === null && $goals !== [],
+            'reason' => $reason ?? ($next === null ? 'This was the last week of the cycle.' : null),
+            'next_week_number' => $next?->week_number,
+            'next_week_budget' => $next?->effectiveBudget(),
+            'resulting_next_week' => $next ? Money::add($next->effectiveBudget(), $remaining) : null,
+            'goals' => $goals,
+        ];
+    }
+
+    /** A leftover move only makes sense once the week can no longer change. */
+    private function assertLeftoverAvailable(WeeklyBudget $week, string $amount): void
+    {
+        $today = CarbonImmutable::today()->startOfDay();
+
+        if (! $today->gt(CarbonImmutable::instance($week->end_date))) {
+            throw new InvalidArgumentException(
+                "Week {$week->week_number} has not finished yet. Decide what to do with what is left once it has."
+            );
+        }
+
+        $remaining = Money::floorAtZero($this->budgets->weeklySummary($week, $today)['remaining']);
+
+        if (Money::gt($amount, $remaining)) {
+            throw new InvalidArgumentException(
+                "Week {$week->week_number} only has {$remaining} left over."
+            );
+        }
+    }
+
+    /**
+     * Hand a finished week's leftover to the week after it. Two halves, like
+     * every other move: this week gives it up so it cannot be counted twice,
+     * and the next week receives it.
+     */
+    private function carryForward(MonthlyPlan $plan, WeeklyBudget $week, string $amount, array $payload): BudgetAdjustment
+    {
+        $this->assertLeftoverAvailable($week, $amount);
+
+        $next = $this->nextWeek($week);
+
+        if ($next === null) {
+            throw new InvalidArgumentException(
+                'This was the last week of the cycle — the leftover is settled at month end instead.'
+            );
+        }
+
+        $weekBefore = $week->effectiveBudget();
+        $nextBefore = $next->effectiveBudget();
+
+        $week->forceFill(['adjusted_amount' => Money::sub($weekBefore, $amount)])->save();
+        $next->forceFill(['adjusted_amount' => Money::add($nextBefore, $amount)])->save();
+
+        $this->audit->record(
+            $plan->user_id,
+            'budget.leftover_carried',
+            $next,
+            ['budget' => $nextBefore, 'source_week_budget' => $weekBefore],
+            ['budget' => $next->effectiveBudget(), 'source_week_budget' => $week->effectiveBudget()],
+            'Leftover from week '.$week->week_number,
+        );
+
+        return BudgetAdjustment::create([
+            'user_id' => $plan->user_id,
+            'monthly_plan_id' => $plan->id,
+            'weekly_budget_id' => $next->id,
+            'source_weekly_budget_id' => $week->id,
+            'type' => AdjustmentType::CarryForward->value,
+            'amount' => $amount,
+            'original_amount' => $nextBefore,
+            'adjusted_amount' => $next->effectiveBudget(),
+            'reason' => $payload['reason'] ?? 'Leftover from week '.$week->week_number,
+        ]);
+    }
+
+    /**
+     * Put a finished week's leftover into a goal now. The week gives it up,
+     * the plan intends to save that much more, and a real deposit records it.
+     */
+    private function toSavings(MonthlyPlan $plan, WeeklyBudget $week, string $amount, array $payload): BudgetAdjustment
+    {
+        $this->assertLeftoverAvailable($week, $amount);
+
+        $goalId = $payload['savings_goal_id'] ?? null;
+
+        if ($goalId === null) {
+            throw new InvalidArgumentException('Choose which goal the money goes to.');
+        }
+
+        $goal = $plan->user->savingsGoals()->findOrFail($goalId);
+
+        $weekBefore = $week->effectiveBudget();
+        $week->forceFill(['adjusted_amount' => Money::sub($weekBefore, $amount)])->save();
+
+        // Planned first, so the recalculated spending budget and the reduced
+        // weeks agree; then the deposit, which the allocation's saved figure
+        // follows from.
+        $allocation = $plan->savingsAllocations()->firstOrCreate(
+            ['savings_goal_id' => $goal->id],
+            ['recommended_amount' => '0.00', 'planned_amount' => '0.00', 'saved_amount' => '0.00'],
+        );
+        $allocation->forceFill([
+            'planned_amount' => Money::add($allocation->planned_amount, $amount),
+        ])->save();
+
+        $this->savings->deposit($goal, [
+            'amount' => $amount,
+            'transaction_date' => CarbonImmutable::today()->toDateString(),
+            'monthly_plan_id' => $plan->id,
+            'description' => 'Left over from week '.$week->week_number,
+        ]);
+
+        $this->plans->recalculate($plan->fresh());
+
+        $this->audit->record(
+            $plan->user_id,
+            'budget.leftover_saved',
+            $week,
+            ['budget' => $weekBefore],
+            ['budget' => $week->effectiveBudget(), 'goal' => $goal->name, 'amount' => $amount],
+            'Leftover from week '.$week->week_number,
+        );
+
+        return BudgetAdjustment::create([
+            'user_id' => $plan->user_id,
+            'monthly_plan_id' => $plan->id,
+            'weekly_budget_id' => $week->id,
+            'source_weekly_budget_id' => $week->id,
+            'type' => AdjustmentType::Savings->value,
+            'amount' => $amount,
+            'original_amount' => $weekBefore,
+            'adjusted_amount' => $week->effectiveBudget(),
+            'reason' => $payload['reason'] ?? 'Saved the leftover from week '.$week->week_number,
+        ]);
     }
 
     private function reduceNextWeek(MonthlyPlan $plan, WeeklyBudget $week, string $amount, array $payload): BudgetAdjustment

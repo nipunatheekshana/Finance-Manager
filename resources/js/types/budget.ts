@@ -275,7 +275,28 @@ export interface CategorySummary {
   status: BudgetStatus
 }
 
-export type AdjustmentType = 'next_week' | 'buffer' | 'category' | 'ignore'
+export type AdjustmentType =
+  | 'next_week'
+  | 'buffer'
+  | 'category'
+  | 'ignore'
+  /** A finished week's leftover, handed to the week after it. */
+  | 'carry_forward'
+  /** A finished week's leftover, put into a goal now. */
+  | 'savings'
+
+/** What a finished week can do with the money it did not spend. */
+export interface LeftoverOptions {
+  is_past: boolean
+  remaining: Money
+  can_carry: boolean
+  can_save: boolean
+  reason: string | null
+  next_week_number: number | null
+  next_week_budget: Money | null
+  resulting_next_week: Money | null
+  goals: Array<{ id: number; name: string; current_amount: Money; target_amount: Money }>
+}
 
 export interface AdjustmentOption {
   type: AdjustmentType
