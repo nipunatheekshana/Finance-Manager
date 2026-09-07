@@ -5,7 +5,6 @@ import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import TextField from '@/components/common/TextField.vue'
-import SelectField from '@/components/common/SelectField.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -13,6 +12,7 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { api } from '@/services/api'
 import { useExpenseStore } from '@/stores/expenses'
+import { CATEGORY_COLORS, CATEGORY_SWATCHES, ICON_GROUPS } from '@/data/categoryOptions'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
 import type { Category } from '@/types'
@@ -28,16 +28,22 @@ const deleting = ref(false)
 const confirmDelete = ref<Category | null>(null)
 const errors = reactive<Record<string, string>>({})
 
-const ICON_OPTIONS = [
-  'utensils', 'car', 'shopping-bag', 'clapperboard', 'receipt', 'cigarette',
-  'user', 'dumbbell', 'heart-pulse', 'repeat', 'users', 'circle-ellipsis',
-  'piggy-bank', 'shield', 'wallet', 'circle',
-].map((icon) => ({ value: icon, label: icon.replace(/-/g, ' ') }))
+/** Type to narrow the icon grid; matching is on the icon's name. */
+const iconSearch = ref('')
 
-const COLOR_OPTIONS = [
-  'amber', 'sky', 'violet', 'pink', 'slate', 'stone',
-  'teal', 'lime', 'rose', 'indigo', 'orange', 'zinc',
-].map((color) => ({ value: color, label: color }))
+const visibleGroups = computed(() => {
+  const needle = iconSearch.value.trim().toLowerCase().replace(/\s+/g, '-')
+  if (needle === '') return ICON_GROUPS
+
+  return ICON_GROUPS.map((group) => ({
+    label: group.label,
+    icons: Object.fromEntries(
+      Object.entries(group.icons).filter(([name]) => name.includes(needle)),
+    ),
+  })).filter((group) => Object.keys(group.icons).length > 0)
+})
+
+const COLOR_NAMES = Object.keys(CATEGORY_COLORS)
 
 const form = reactive({
   name: '',
@@ -186,14 +192,62 @@ onMounted(async () => {
       <div class="space-y-4 pb-2">
         <TextField v-model="form.name" label="Name" required :error="errors.name" data-autofocus />
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <SelectField v-model="form.icon" :options="ICON_OPTIONS" label="Icon" />
-          <SelectField v-model="form.color" :options="COLOR_OPTIONS" label="Colour" />
+        <!-- What it will look like, above the choices that change it. -->
+        <div class="flex items-center gap-3 rounded-[var(--radius-field)] bg-sunken p-3">
+          <CategoryIcon :icon="form.icon" :color="form.color" size="lg" />
+          <span class="min-w-0">
+            <span class="block truncate text-sm font-semibold text-ink">{{ form.name || 'New category' }}</span>
+            <span class="block text-xs text-ink-muted">{{ form.icon.replace(/-/g, ' ') }} · {{ form.color }}</span>
+          </span>
         </div>
 
-        <div class="flex items-center gap-3 rounded-[var(--radius-field)] bg-sunken p-3">
-          <CategoryIcon :icon="form.icon" :color="form.color" />
-          <span class="text-sm text-ink-muted">Preview</span>
+        <div>
+          <span class="label">Colour</span>
+          <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Colour">
+            <button
+              v-for="color in COLOR_NAMES"
+              :key="color"
+              type="button"
+              role="radio"
+              :aria-checked="form.color === color"
+              :aria-label="color"
+              class="flex h-9 w-9 items-center justify-center rounded-full transition"
+              :class="form.color === color ? 'ring-2 ring-brand ring-offset-2 ring-offset-raised' : 'hover:scale-105'"
+              @click="form.color = color"
+            >
+              <span class="h-6 w-6 rounded-full" :class="CATEGORY_SWATCHES[color]" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <TextField v-model="iconSearch" label="Icon" placeholder="Search icons…" />
+
+          <div class="mt-2 max-h-64 space-y-3 overflow-y-auto rounded-[var(--radius-field)] border border-line p-3">
+            <p v-if="!visibleGroups.length" class="py-4 text-center text-sm text-ink-muted">
+              No icon matches that.
+            </p>
+
+            <section v-for="group in visibleGroups" :key="group.label">
+              <p class="eyebrow mb-1.5">{{ group.label }}</p>
+              <div class="grid grid-cols-6 gap-1.5 sm:grid-cols-8" role="radiogroup" :aria-label="group.label">
+                <button
+                  v-for="(_, name) in group.icons"
+                  :key="name"
+                  type="button"
+                  role="radio"
+                  :aria-checked="form.icon === name"
+                  :aria-label="String(name).replace(/-/g, ' ')"
+                  :title="String(name).replace(/-/g, ' ')"
+                  class="flex h-11 w-full items-center justify-center rounded-[var(--radius-field)] transition"
+                  :class="form.icon === name ? 'bg-brand-soft ring-2 ring-brand' : 'hover:bg-sunken'"
+                  @click="form.icon = String(name)"
+                >
+                  <CategoryIcon :icon="String(name)" :color="form.color" size="sm" />
+                </button>
+              </div>
+            </section>
+          </div>
         </div>
 
         <MoneyInput

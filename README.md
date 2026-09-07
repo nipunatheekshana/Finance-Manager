@@ -216,6 +216,13 @@ gone is fine on day 20 and alarming on day 3 — so each allowance also reports
 what is left **per remaining day** and whether it is running ahead of an even
 pace. That is what the dashboard leads with.
 
+Categories carry an icon and a colour, chosen from a visual picker rather than
+a dropdown: 130-odd icons in themed groups with a search box, and Tailwind's
+full hue range for the tint. Both lists live in one module
+(`resources/js/data/categoryOptions.ts`) that the picker and the renderer share,
+so a category can never be saved with an icon the app cannot draw; anything
+unknown that does reach the database falls back to a plain circle in slate.
+
 Turn a category budget into an allowance with one toggle in Settings →
 Categories — the toggle needs a monthly amount, since an allowance has to have
 something to reserve. Adjust the amounts for a single cycle in the planner's
