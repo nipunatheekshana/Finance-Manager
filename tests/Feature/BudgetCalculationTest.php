@@ -77,7 +77,7 @@ class BudgetCalculationTest extends TestCase
     }
 
     #[Test]
-    public function the_daily_limit_is_capped_by_what_the_rest_of_the_month_can_sustain(): void
+    public function the_daily_figures_follow_the_week_and_warn_when_the_month_cannot_keep_up(): void
     {
         $this->freezeOn('2026-09-25');
         [$user, $plan] = $this->planWithSpending('30000.00');
@@ -100,10 +100,16 @@ class BudgetCalculationTest extends TestCase
             $today,
         );
 
+        // The weeks are the plan, so today follows the week — and tomorrow is
+        // worked out on exactly the same basis, so the two agree.
         $this->assertSame('3500.00', $week['recommended_daily']);
+        $this->assertSame('3500.00', $daily['recommended']);
+        $this->assertSame('4000.00', $daily['next_day_recommended']);
 
-        // The month-wide pace wins, so one generous week cannot blow the cycle.
-        $this->assertSame('1000.00', $daily['recommended']);
+        // What the cycle can actually sustain is reported alongside, not
+        // silently swapped in for the week's figure.
+        $this->assertTrue($daily['month_cannot_sustain']);
+        $this->assertSame('1000.00', $daily['monthly_pace']);
     }
 
     #[Test]

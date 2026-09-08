@@ -356,6 +356,14 @@ class BudgetCalculationService
         $monthDaysRemaining = max(1, (int) $monthly['days_remaining']);
         $monthlyPace = Money::div(Money::floorAtZero($monthly['remaining']), (string) $monthDaysRemaining);
 
+        // The weeks are the plan. Today and tomorrow both follow the week's own
+        // money and days, so the two figures always agree with each other. If
+        // the remaining weeks promise more than the cycle has left — an earlier
+        // week went over and was left as it was — that is flagged, not
+        // silently corrected: changing the number without saying why is what
+        // made it look wrong.
+        $monthCannotSustain = false;
+
         if ($week === null) {
             // Outside any planned week — fall back to the month-wide pace.
             $recommended = $monthlyPace;
@@ -371,9 +379,11 @@ class BudgetCalculationService
             $startOfDayRemaining = Money::add($weekRemaining, $spentToday);
             $weeklyPace = Money::div(Money::floorAtZero($startOfDayRemaining), (string) $daysRemaining);
 
-            $recommended = Money::min($weeklyPace, $monthlyPace);
+            $recommended = $weeklyPace;
+            $monthCannotSustain = Money::lt($monthlyPace, $weeklyPace);
         }
 
+        // Same basis as today: the week's remainder over the days it has left.
         $daysAfterToday = max(0, $daysRemaining - 1);
         $nextDayRecommended = $daysAfterToday > 0
             ? Money::div(Money::floorAtZero($weekRemaining), (string) $daysAfterToday)
@@ -390,6 +400,11 @@ class BudgetCalculationService
             // What each remaining day is worth once today is closed out.
             'next_day_recommended' => $nextDayRecommended,
             'days_remaining_in_week' => $daysRemaining,
+            // The remaining weeks add up to more than the cycle has left. The
+            // week's figure stands, but the user should know the pool behind
+            // it is thinner than the weeks suggest.
+            'month_cannot_sustain' => $monthCannotSustain,
+            'monthly_pace' => $monthlyPace,
         ];
     }
 

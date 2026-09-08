@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AlertTriangle } from 'lucide-vue-next'
 import { computed } from 'vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import BudgetProgress from '@/components/common/BudgetProgress.vue'
@@ -39,6 +40,14 @@ const isOver = computed(() => props.today.status === 'over')
       <template v-else>
         <MoneyText :amount="today.remaining" size="sm" class="font-semibold text-ink" /> left for today.
       </template>
+    </p>
+
+    <!-- The week's figure stands, but if the weeks add up to more than the
+         cycle has left, the user should know the pool behind them is thinner. -->
+    <p v-if="today.month_cannot_sustain" class="mt-1 flex items-start gap-1 text-xs text-warn">
+      <AlertTriangle class="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+      Your weeks promise more than the cycle has left — the whole cycle can only
+      sustain about <MoneyText :amount="today.monthly_pace" size="xs" class="font-semibold" /> a day.
     </p>
 
     <!-- The pace for the rest of the week, recalculated after every expense. -->

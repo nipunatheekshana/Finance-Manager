@@ -259,6 +259,10 @@ export interface DailySummary {
   /** What each remaining day is worth once today is closed out. */
   next_day_recommended: Money
   days_remaining_in_week: number
+  /** The remaining weeks promise more than the cycle has left. */
+  month_cannot_sustain: boolean
+  /** What the cycle alone could sustain per day, for the warning. */
+  monthly_pace: Money
 }
 
 export interface CategorySummary {
