@@ -46,8 +46,9 @@ const isOver = computed(() => props.today.status === 'over')
          cycle has left, the user should know the pool behind them is thinner. -->
     <p v-if="today.month_cannot_sustain" class="mt-1 flex items-start gap-1 text-xs text-warn">
       <AlertTriangle class="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
-      Your weeks promise more than the cycle has left — the whole cycle can only
-      sustain about <MoneyText :amount="today.monthly_pace" size="xs" class="font-semibold" /> a day.
+      Your remaining weeks add up to
+      <MoneyText :amount="today.month_shortfall" size="xs" class="font-semibold" /> more than the
+      cycle has left — an earlier week went over and was not adjusted.
     </p>
 
     <!-- The pace for the rest of the week, recalculated after every expense. -->

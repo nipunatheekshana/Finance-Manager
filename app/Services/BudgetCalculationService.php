@@ -336,6 +336,27 @@ class BudgetCalculationService
     }
 
     /**
+     * How much more the weeks still to come promise than the cycle has left.
+     *
+     * Zero for any plan whose weeks were only ever moved around, however
+     * unevenly: the weeks partition the spending budget, so their remainders
+     * and the month's agree. It goes positive when a finished week spent past
+     * its budget and nothing later was reduced to absorb it.
+     */
+    private function weeksPromiseBeyondMonth(MonthlyPlan $plan, CarbonImmutable $today, string $monthRemaining): string
+    {
+        $plan->loadMissing('weeklyBudgets');
+
+        $promised = Money::sum(
+            $plan->weeklyBudgets
+                ->filter(fn (WeeklyBudget $week) => CarbonImmutable::instance($week->end_date)->gte($today))
+                ->map(fn (WeeklyBudget $week) => Money::floorAtZero($this->weeklySummary($week, $today)['remaining']))
+        );
+
+        return Money::floorAtZero(Money::sub($promised, $monthRemaining));
+    }
+
+    /**
      * Today's allowance.
      *
      * The recommendation is the pace the user could have set at the start of
@@ -357,13 +378,7 @@ class BudgetCalculationService
         $monthlyPace = Money::div(Money::floorAtZero($monthly['remaining']), (string) $monthDaysRemaining);
 
         // The weeks are the plan. Today and tomorrow both follow the week's own
-        // money and days, so the two figures always agree with each other. If
-        // the remaining weeks promise more than the cycle has left — an earlier
-        // week went over and was left as it was — that is flagged, not
-        // silently corrected: changing the number without saying why is what
-        // made it look wrong.
-        $monthCannotSustain = false;
-
+        // money and days, so the two figures always agree with each other.
         if ($week === null) {
             // Outside any planned week — fall back to the month-wide pace.
             $recommended = $monthlyPace;
@@ -380,8 +395,14 @@ class BudgetCalculationService
             $weeklyPace = Money::div(Money::floorAtZero($startOfDayRemaining), (string) $daysRemaining);
 
             $recommended = $weeklyPace;
-            $monthCannotSustain = Money::lt($monthlyPace, $weeklyPace);
         }
+
+        // Weeks are allowed to be uneven — a front-loaded week is a choice, not
+        // a fault, so its pace being above the month's average means nothing.
+        // The one thing worth flagging is the weeks still to come adding up to
+        // more than the cycle actually has left, which only happens when an
+        // earlier week went over and was left as it was.
+        $shortfall = $this->weeksPromiseBeyondMonth($plan, $today, Money::floorAtZero($monthly['remaining']));
 
         // Same basis as today: the week's remainder over the days it has left.
         $daysAfterToday = max(0, $daysRemaining - 1);
@@ -402,8 +423,9 @@ class BudgetCalculationService
             'days_remaining_in_week' => $daysRemaining,
             // The remaining weeks add up to more than the cycle has left. The
             // week's figure stands, but the user should know the pool behind
-            // it is thinner than the weeks suggest.
-            'month_cannot_sustain' => $monthCannotSustain,
+            // it is thinner than the weeks suggest — and by how much.
+            'month_cannot_sustain' => Money::isPositive($shortfall),
+            'month_shortfall' => $shortfall,
             'monthly_pace' => $monthlyPace,
         ];
     }

@@ -77,7 +77,7 @@ class BudgetCalculationTest extends TestCase
     }
 
     #[Test]
-    public function the_daily_figures_follow_the_week_and_warn_when_the_month_cannot_keep_up(): void
+    public function the_daily_figures_follow_the_week_however_unevenly_it_was_planned(): void
     {
         $this->freezeOn('2026-09-25');
         [$user, $plan] = $this->planWithSpending('30000.00');
@@ -106,10 +106,35 @@ class BudgetCalculationTest extends TestCase
         $this->assertSame('3500.00', $daily['recommended']);
         $this->assertSame('4000.00', $daily['next_day_recommended']);
 
-        // What the cycle can actually sustain is reported alongside, not
-        // silently swapped in for the week's figure.
+        // Uneven weeks are a choice. These four add up to exactly the 30,000
+        // the cycle has, so there is nothing to warn about.
+        $this->assertFalse($daily['month_cannot_sustain']);
+        $this->assertSame('0.00', $daily['month_shortfall']);
+    }
+
+    #[Test]
+    public function the_warning_appears_only_when_an_ignored_overspend_leaves_the_weeks_promising_too_much(): void
+    {
+        $this->freezeOn('2026-09-25');
+        [$user, $plan] = $this->planWithSpending('30000.00');
+
+        app(FinancialPlanService::class)->applyWeeklyBudgets($plan, [
+            ['week_number' => 1, 'budget_amount' => '28000.00'],
+            ['week_number' => 2, 'budget_amount' => '1000.00'],
+            ['week_number' => 3, 'budget_amount' => '500.00'],
+            ['week_number' => 4, 'budget_amount' => '500.00'],
+        ]);
+
+        // Week 1 blows through its 28,000 by 2,000 and nothing is adjusted.
+        $this->spend($user, '30000.00', '2026-09-25');
+
+        $daily = app(BudgetCalculationService::class)
+            ->dailySummary($plan->fresh(['weeklyBudgets']), CarbonImmutable::parse('2026-09-25'));
+
+        // Weeks 2–4 still promise 2,000; the cycle has 0 left. That 2,000 is
+        // precisely the overspend nobody absorbed.
         $this->assertTrue($daily['month_cannot_sustain']);
-        $this->assertSame('1000.00', $daily['monthly_pace']);
+        $this->assertSame('2000.00', $daily['month_shortfall']);
     }
 
     #[Test]

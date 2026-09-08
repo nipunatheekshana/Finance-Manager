@@ -259,9 +259,10 @@ export interface DailySummary {
   /** What each remaining day is worth once today is closed out. */
   next_day_recommended: Money
   days_remaining_in_week: number
-  /** The remaining weeks promise more than the cycle has left. */
+  /** The remaining weeks add up to more than the cycle has left. */
   month_cannot_sustain: boolean
-  /** What the cycle alone could sustain per day, for the warning. */
+  /** By how much — the overspend nothing later absorbed. */
+  month_shortfall: Money
   monthly_pace: Money
 }
 
