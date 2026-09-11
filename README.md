@@ -445,6 +445,21 @@ of it went on cards and steers towards paying the debt.
 The one figure that is deliberately **not** on a cash basis is the expense
 history and the reports: a purchase is a purchase, whichever way it was paid.
 
+Cards have their own screen, **Credit cards**, for what a card *is*: a fixed
+limit set by the bank, what has been spent against it (a donut of spent
+against available), what went on it each cycle, its payoff estimate and its
+recent purchases. What a card *costs* — the amount owed, how much to pay back
+and when — stays under **Debts**, where paying it is one tap: minimum, planned,
+or in full, or any figure typed. The two screens link to each other.
+
+Cards stay *debts* in the model — the same payments, plan allocations and
+payoff estimate serve both — but they are drawn differently. A loan empties
+towards zero, so it shows "% paid off from the original amount". A card is
+revolving, and that figure means nothing once the balance has moved past what
+it started at; a card shows its **balance against its limit**, with the room
+between the two as *available to charge*. On the Debts screen the two kinds sit
+in their own sections.
+
 ### Leftover money does not evaporate
 
 When a cycle ends with money unspent, that money is real — it is still in the

@@ -16,6 +16,7 @@ const ICONS = {
 } as const
 
 const icon = computed(() => ICONS[props.debt.type])
+const isCard = computed(() => props.debt.type === 'credit_card')
 </script>
 
 <template>
@@ -45,23 +46,48 @@ const icon = computed(() => ICONS[props.debt.type])
           </template>
         </p>
 
-        <BudgetProgress
-          class="mt-2.5"
-          height="sm"
-          :percentage="debt.progress_percentage"
-          status="safe"
-          :label="`${debt.name}: ${debt.progress_percentage.toFixed(0)}% paid off`"
-        />
+        <!-- A card fills towards its limit; a loan empties towards zero. -->
+        <template v-if="isCard">
+          <BudgetProgress
+            class="mt-2.5"
+            height="sm"
+            :percentage="debt.utilisation_percentage ?? 0"
+            :status="(debt.utilisation_percentage ?? 0) >= 90 ? 'over' : (debt.utilisation_percentage ?? 0) >= 70 ? 'warning' : 'safe'"
+            :label="`${debt.name}: ${(debt.utilisation_percentage ?? 0).toFixed(0)}% of the credit limit used`"
+          />
 
-        <div class="mt-2 flex items-center justify-between text-xs">
-          <span class="text-ink-muted">
-            {{ debt.progress_percentage.toFixed(0) }}% paid off
-          </span>
-          <span class="text-ink-muted">
-            <MoneyText :amount="debt.planned_payment" size="xs" class="font-semibold text-ink" />
-            planned
-          </span>
-        </div>
+          <div class="mt-2 flex items-center justify-between text-xs">
+            <span class="text-ink-muted">
+              <template v-if="debt.available_credit !== null">
+                <MoneyText :amount="debt.available_credit" size="xs" class="font-semibold text-safe" /> available
+              </template>
+              <template v-else>No limit recorded</template>
+            </span>
+            <span v-if="debt.credit_limit" class="text-ink-muted">
+              limit <MoneyText :amount="debt.credit_limit" size="xs" class="font-semibold text-ink" />
+            </span>
+          </div>
+        </template>
+
+        <template v-else>
+          <BudgetProgress
+            class="mt-2.5"
+            height="sm"
+            :percentage="debt.progress_percentage"
+            status="safe"
+            :label="`${debt.name}: ${debt.progress_percentage.toFixed(0)}% paid off`"
+          />
+
+          <div class="mt-2 flex items-center justify-between text-xs">
+            <span class="text-ink-muted">
+              {{ debt.progress_percentage.toFixed(0) }}% paid off
+            </span>
+            <span class="text-ink-muted">
+              <MoneyText :amount="debt.planned_payment" size="xs" class="font-semibold text-ink" />
+              planned
+            </span>
+          </div>
+        </template>
 
         <!-- The schedule total is not a settlement quote, and says so. -->
         <p v-if="debt.scheduled_remaining" class="mt-1.5 text-xs text-ink-subtle">

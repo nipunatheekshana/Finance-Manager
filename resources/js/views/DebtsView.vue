@@ -5,6 +5,7 @@ import PageHeader from '@/components/layout/PageHeader.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
+import SectionHeader from '@/components/common/SectionHeader.vue'
 import DebtCard from '@/components/debts/DebtCard.vue'
 import DebtFormSheet from '@/components/debts/DebtFormSheet.vue'
 import { useDebtStore } from '@/stores/debts'
@@ -13,6 +14,9 @@ const debts = useDebtStore()
 const formOpen = ref(false)
 
 const payoff = computed(() => debts.totals?.payoff ?? null)
+
+const cards = computed(() => debts.items.filter((debt) => debt.type === 'credit_card'))
+const others = computed(() => debts.items.filter((debt) => debt.type !== 'credit_card'))
 
 onMounted(() => {
   void debts.fetch()
@@ -69,7 +73,34 @@ onMounted(() => {
         </dl>
       </section>
 
-      <ul class="space-y-3">
+      <!-- Cards and loans are both debts underneath — same payments, same
+           allocations, same payoff maths — but they read differently: a card
+           fills towards a limit, a loan empties towards zero. So they get
+           their own section rather than their own model. -->
+      <section v-if="cards.length && others.length">
+        <SectionHeader
+          title="Credit cards"
+          subtitle="What you owe on each card and what you are paying back"
+          action-label="Card details"
+          action-to="/cards"
+        />
+        <ul class="space-y-3">
+          <li v-for="debt in cards" :key="debt.id">
+            <DebtCard :debt="debt" />
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="cards.length && others.length">
+        <SectionHeader title="Loans & instalments" subtitle="Paid down towards zero" />
+        <ul class="space-y-3">
+          <li v-for="debt in others" :key="debt.id">
+            <DebtCard :debt="debt" />
+          </li>
+        </ul>
+      </section>
+
+      <ul v-if="!(cards.length && others.length)" class="space-y-3">
         <li v-for="debt in debts.items" :key="debt.id">
           <DebtCard :debt="debt" />
         </li>

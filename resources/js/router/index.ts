@@ -78,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Debts' },
       },
       {
+        path: 'cards',
+        name: 'credit-cards',
+        component: () => import('@/views/CreditCardsView.vue'),
+        meta: { title: 'Credit cards' },
+      },
+      {
         path: 'debts/:id',
         name: 'debt-detail',
         component: () => import('@/views/DebtDetailView.vue'),

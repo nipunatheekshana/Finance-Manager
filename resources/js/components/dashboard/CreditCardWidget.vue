@@ -81,9 +81,9 @@ const utilisation = computed(() => {
           <BudgetProgress
             class="mt-1.5"
             height="sm"
-            :percentage="card.progress_percentage"
-            status="safe"
-            :label="`${card.name}: ${card.progress_percentage.toFixed(0)}% paid off`"
+            :percentage="card.utilisation_percentage ?? 0"
+            :status="(card.utilisation_percentage ?? 0) >= 90 ? 'over' : (card.utilisation_percentage ?? 0) >= 70 ? 'warning' : 'safe'"
+            :label="`${card.name}: ${(card.utilisation_percentage ?? 0).toFixed(0)}% of the credit limit used`"
           />
         </RouterLink>
       </li>
@@ -101,8 +101,8 @@ const utilisation = computed(() => {
         <CreditCard class="h-4 w-4 text-ink-subtle" aria-hidden="true" />
         <h2 class="eyebrow">{{ primary.name }}</h2>
       </div>
-      <span class="tabular text-xs font-semibold text-ink-muted">
-        {{ primary.progress_percentage.toFixed(0) }}% paid off
+      <span v-if="primary.utilisation_percentage !== null" class="tabular text-xs font-semibold text-ink-muted">
+        {{ primary.utilisation_percentage.toFixed(0) }}% of limit used
       </span>
     </div>
 
@@ -110,9 +110,9 @@ const utilisation = computed(() => {
 
     <BudgetProgress
       class="mt-3"
-      :percentage="primary.progress_percentage"
-      status="safe"
-      :label="`${primary.name}: ${primary.progress_percentage.toFixed(0)}% paid off`"
+      :percentage="primary.utilisation_percentage ?? 0"
+      :status="(primary.utilisation_percentage ?? 0) >= 90 ? 'over' : (primary.utilisation_percentage ?? 0) >= 70 ? 'warning' : 'safe'"
+      :label="`${primary.name}: ${(primary.utilisation_percentage ?? 0).toFixed(0)}% of the credit limit used`"
     />
 
     <div class="mt-3 flex items-center justify-between text-sm">

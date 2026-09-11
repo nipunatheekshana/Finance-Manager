@@ -142,20 +142,49 @@ onMounted(async () => {
           <p class="eyebrow">Current balance</p>
           <MoneyText :amount="debt.current_balance" size="3xl" class="mt-1 block font-bold" />
 
-          <BudgetProgress
-            class="mt-4"
-            :percentage="debt.progress_percentage"
-            status="safe"
-            height="lg"
-            :label="`${debt.progress_percentage.toFixed(0)}% paid off`"
-          />
+          <!-- A card is revolving: "paid off from the original amount" means
+               nothing once the balance has moved past it. What a card has is a
+               limit, a balance against it, and the room left between the two. -->
+          <template v-if="debt.type === 'credit_card' && debt.utilisation_percentage !== null">
+            <BudgetProgress
+              class="mt-4"
+              :percentage="debt.utilisation_percentage"
+              :status="debt.utilisation_percentage >= 90 ? 'over' : debt.utilisation_percentage >= 70 ? 'warning' : 'safe'"
+              height="lg"
+              :label="`${debt.name}: ${debt.utilisation_percentage.toFixed(0)}% of the credit limit used`"
+            />
 
-          <div class="mt-2 flex items-center justify-between text-sm">
-            <span class="text-ink-muted">{{ debt.progress_percentage.toFixed(0) }}% paid off</span>
-            <span class="text-ink-muted">
-              from <MoneyText :amount="debt.original_amount" size="sm" class="font-semibold" />
-            </span>
-          </div>
+            <div class="mt-2 flex items-center justify-between text-sm">
+              <span class="text-ink-muted">
+                <MoneyText :amount="debt.current_balance" size="sm" class="font-semibold text-ink" /> owed
+                · {{ debt.utilisation_percentage.toFixed(0) }}% of limit
+              </span>
+              <span class="text-ink-muted">
+                Credit limit <MoneyText :amount="debt.credit_limit ?? '0'" size="sm" class="font-semibold text-ink" />
+              </span>
+            </div>
+
+            <p v-if="debt.available_credit !== null" class="mt-1 text-sm text-ink-muted">
+              <MoneyText :amount="debt.available_credit" size="sm" class="font-semibold text-safe" /> available to charge.
+            </p>
+          </template>
+
+          <template v-else>
+            <BudgetProgress
+              class="mt-4"
+              :percentage="debt.progress_percentage"
+              status="safe"
+              height="lg"
+              :label="`${debt.progress_percentage.toFixed(0)}% paid off`"
+            />
+
+            <div class="mt-2 flex items-center justify-between text-sm">
+              <span class="text-ink-muted">{{ debt.progress_percentage.toFixed(0) }}% paid off</span>
+              <span class="text-ink-muted">
+                from <MoneyText :amount="debt.original_amount" size="sm" class="font-semibold" />
+              </span>
+            </div>
+          </template>
 
           <dl class="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4">
             <div>

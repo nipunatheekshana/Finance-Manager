@@ -83,3 +83,47 @@ export interface DebtTotals {
     projections: Array<PayoffProjection & { debt_id: number; name: string }>
   }
 }
+
+/** A card as a spending instrument, for the Credit cards screen. */
+export interface CreditCardOverview {
+  id: number
+  name: string
+  status: string
+  credit_limit: Money | null
+  balance: Money
+  /** limit − balance; null when the card has no limit recorded. */
+  available: Money | null
+  utilisation_percentage: number | null
+  minimum_payment: Money
+  planned_payment: Money
+  interest_rate: string | null
+  due_day: number | null
+  charged_this_cycle: Money
+  /** Charged minus planned payment; positive means the card is growing. */
+  net_change: Money
+  is_growing: boolean
+  payoff: PayoffProjection
+  recent_purchases: Array<{
+    id: number
+    amount: Money
+    expense_date: string
+    description: string | null
+    category: string
+    icon: string
+    color: string
+  }>
+  charges_by_cycle: Array<{ label: string; charged: Money }>
+}
+
+export interface CreditCardsPage {
+  cards: CreditCardOverview[]
+  totals: {
+    count: number
+    balance: Money
+    credit_limit: Money
+    available: Money
+    charged_this_cycle: Money
+    planned_payment: Money
+  }
+  plan_label: string | null
+}

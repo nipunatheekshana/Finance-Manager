@@ -3,7 +3,8 @@ import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Gauge,
-  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
+  Home, Landmark, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp,
+  Wallet,
 } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -47,7 +48,8 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/expenses', label: 'Expenses', icon: Receipt },
       { to: '/income', label: 'Income', icon: Banknote },
-      { to: '/debts', label: 'Debts', icon: CreditCard },
+      { to: '/cards', label: 'Credit cards', icon: CreditCard },
+      { to: '/debts', label: 'Debts', icon: Landmark },
       { to: '/savings', label: 'Savings', icon: PiggyBank },
     ],
   },

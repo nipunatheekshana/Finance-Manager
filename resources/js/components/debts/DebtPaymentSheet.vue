@@ -10,6 +10,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useUiStore } from '@/stores/ui'
 import { ApiError } from '@/services/api'
 import { todayIso } from '@/composables/useDates'
+import { formatLKR } from '@/composables/useCurrency'
 import type { Debt } from '@/types'
 
 const props = defineProps<{ open: boolean; debt: Debt | null }>()
@@ -43,6 +44,11 @@ watch(
     errors.value = {}
   },
 )
+
+/** Whether the typed amount is one of the quick options, for the highlight. */
+function isQuick(value: string): boolean {
+  return Math.abs(Number.parseFloat(amount.value) - Number.parseFloat(value)) < 0.005
+}
 
 async function submit(): Promise<void> {
   if (!props.debt) return
@@ -106,6 +112,38 @@ async function submit(): Promise<void> {
           </template>
         </span>
         <MoneyText :amount="debt.cycle.outstanding" size="sm" class="shrink-0 font-bold text-ink" />
+      </div>
+
+      <!-- How much to pay is the whole decision, so the three usual answers
+           are one tap away; anything else can still be typed. -->
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Quick amounts">
+        <button
+          v-if="Number.parseFloat(debt.minimum_payment) > 0"
+          type="button"
+          class="badge min-h-9 px-3"
+          :class="isQuick(debt.minimum_payment) ? 'bg-brand text-on-brand' : 'bg-sunken text-ink-muted'"
+          @click="amount = String(Number.parseFloat(debt.minimum_payment))"
+        >
+          Minimum · {{ formatLKR(debt.minimum_payment) }}
+        </button>
+        <button
+          v-if="Number.parseFloat(debt.planned_payment) > 0"
+          type="button"
+          class="badge min-h-9 px-3"
+          :class="isQuick(debt.planned_payment) ? 'bg-brand text-on-brand' : 'bg-sunken text-ink-muted'"
+          @click="amount = String(Number.parseFloat(debt.planned_payment))"
+        >
+          Planned · {{ formatLKR(debt.planned_payment) }}
+        </button>
+        <button
+          v-if="Number.parseFloat(debt.current_balance) > 0"
+          type="button"
+          class="badge min-h-9 px-3"
+          :class="isQuick(debt.current_balance) ? 'bg-brand text-on-brand' : 'bg-sunken text-ink-muted'"
+          @click="amount = String(Number.parseFloat(debt.current_balance))"
+        >
+          Pay in full · {{ formatLKR(debt.current_balance) }}
+        </button>
       </div>
 
       <MoneyInput v-model="amount" large label="Payment amount" :error="errors.amount" data-autofocus />

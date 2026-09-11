@@ -2,7 +2,8 @@
 import { useRoute } from 'vue-router'
 import {
   Banknote, BarChart3, CalendarDays, ChevronRight, CreditCard, Download, Gauge,
-  Home, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp, Wallet,
+  Home, Landmark, ListChecks, LogOut, PiggyBank, Receipt, Settings, TrendingUp,
+  Wallet,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -21,7 +22,8 @@ const items = [
   { to: '/plan', label: 'Monthly plan', icon: ListChecks },
   { to: '/expenses', label: 'Expenses', icon: Receipt },
   { to: '/income', label: 'Income', icon: Banknote },
-  { to: '/debts', label: 'Debts', icon: CreditCard },
+  { to: '/cards', label: 'Credit cards', icon: CreditCard },
+  { to: '/debts', label: 'Debts', icon: Landmark },
   { to: '/savings', label: 'Savings', icon: PiggyBank },
   { to: '/cycle', label: 'Cycle progress', icon: Gauge },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
