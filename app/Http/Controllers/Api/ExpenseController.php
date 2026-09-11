@@ -87,6 +87,7 @@ class ExpenseController extends Controller
                 $validated['expense_date'] ?? null,
                 $validated['category_id'] ?? null,
                 $validated['expense_id'] ?? null,
+                $validated['payment_method_id'] ?? null,
             ),
         ]);
     }

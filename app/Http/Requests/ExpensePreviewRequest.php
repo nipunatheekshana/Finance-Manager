@@ -24,6 +24,12 @@ class ExpensePreviewRequest extends FormRequest
                 'nullable',
                 Rule::exists('categories', 'id')->where('user_id', $this->user()->id),
             ],
+            // Which card, if any: a card purchase is previewed against the card.
+            'payment_method_id' => [
+                'sometimes',
+                'nullable',
+                Rule::exists('payment_methods', 'id')->where('user_id', $this->user()->id),
+            ],
             // Set when editing, so the expense's current amount is not counted twice.
             'expense_id' => [
                 'sometimes',

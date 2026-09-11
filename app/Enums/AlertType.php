@@ -14,6 +14,8 @@ enum AlertType: string
     case CategoryBudgetExceeded = 'category_budget_exceeded';
     case SavingsTargetReached = 'savings_target_reached';
     case CreditCardIncreased = 'credit_card_increased';
+    /** Charged more this cycle than the plan pays back. */
+    case CreditCardGrowing = 'credit_card_growing';
     case WeeklyReview = 'weekly_review';
     case CycleSurplus = 'cycle_surplus';
     case AllowanceRunningOut = 'allowance_running_out';

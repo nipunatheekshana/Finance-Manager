@@ -10,6 +10,8 @@ export interface Debt {
   original_amount: Money
   current_balance: Money
   credit_limit: Money | null
+  /** limit − balance; null when the card has no limit recorded. */
+  available_credit: Money | null
   interest_rate: string | null
   minimum_payment: Money
   planned_payment: Money

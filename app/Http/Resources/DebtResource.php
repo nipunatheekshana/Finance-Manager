@@ -18,6 +18,8 @@ class DebtResource extends JsonResource
             'original_amount' => Money::of($this->original_amount),
             'current_balance' => Money::of($this->current_balance),
             'credit_limit' => $this->credit_limit === null ? null : Money::of($this->credit_limit),
+            // balance + available == limit, always: available is derived.
+            'available_credit' => $this->availableCredit(),
             'interest_rate' => $this->interest_rate === null ? null : (string) $this->interest_rate,
             'minimum_payment' => Money::of($this->minimum_payment),
             'planned_payment' => Money::of($this->planned_payment),

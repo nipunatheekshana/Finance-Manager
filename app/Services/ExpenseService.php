@@ -96,7 +96,20 @@ class ExpenseService
                 ? $user->paymentMethods()->findOrFail($data['payment_method_id'])
                 : $expense->paymentMethod;
 
-            $newDebtId = $this->resolveDebtId($user, $paymentMethod, $data + ['debt_id' => $expense->debt_id]);
+            // Which card, if any, the purchase is on after this edit.
+            //
+            // The payment method is the source of truth. Passing the old
+            // debt_id in as a default used to win over the new method, so a
+            // purchase moved from a card to cash stayed charged to the card —
+            // reversed and re-applied, balance unchanged, still off the week.
+            $newDebtId = match (true) {
+                // An explicit link in the request always stands.
+                array_key_exists('debt_id', $data) => $this->resolveDebtId($user, $paymentMethod, $data),
+                // Method changed: follow the new method, card or not.
+                array_key_exists('payment_method_id', $data) => $paymentMethod->debt_id,
+                // Method unchanged: keep whatever the purchase was linked to.
+                default => $expense->debt_id,
+            };
 
             // Unwind the old card charge before applying the new one, so editing
             // an amount or switching payment method leaves the balance correct.
@@ -132,6 +145,12 @@ class ExpenseService
 
             $this->alerts->afterExpenseRecorded($expense);
 
+            // The card it came off, if it changed hands: that card charged less
+            // this cycle than it did a moment ago.
+            if ($originalDebtId !== null && $originalDebtId !== $newDebtId) {
+                $this->alerts->afterCardChargeRemoved($user, $originalDebtId);
+            }
+
             return $expense->load(['category', 'paymentMethod']);
         });
     }
@@ -157,6 +176,10 @@ class ExpenseService
         // Removing the spending can take the week back under its budget, and
         // the warning has to go with it.
         $this->alerts->afterExpenseDeleted($expense);
+
+        if ($expense->debt_id !== null) {
+            $this->alerts->afterCardChargeRemoved($expense->user, $expense->debt_id);
+        }
     }
 
     /**

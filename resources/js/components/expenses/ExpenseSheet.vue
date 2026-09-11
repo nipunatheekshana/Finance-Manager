@@ -127,6 +127,7 @@ function refreshImpact(): void {
         expense_date: expenseDate.value,
         category_id: categoryId.value,
         expense_id: ui.editingExpenseId,
+        payment_method_id: paymentMethodId.value,
       })
       .then((result) => {
         impact.value = result
@@ -159,6 +160,9 @@ const partlyPaidByAllowance = computed(
   () => impact.value?.allowance != null && amountToNumber(impact.value.allowance.covered) > 0
     && amountToNumber(impact.value.allowance.from_day_to_day) > 0,
 )
+
+// Switching between cash and a card changes what the preview is about.
+watch(paymentMethodId, () => refreshImpact())
 
 /** The week would go over, and the user has not acknowledged that yet. */
 const needsAcknowledgement = computed(
@@ -301,6 +305,42 @@ async function confirmDelete(): Promise<void> {
         :error="errors.amount"
         data-autofocus
       />
+
+      <!-- On a card, nothing in the plan moves: the purchase goes on the card
+           and its available credit absorbs it. So the preview is about the
+           card — and a purchase the bank would decline is called out. -->
+      <div v-if="impact?.card" class="-mt-2">
+        <div
+          class="rounded-[var(--radius-field)] p-3"
+          :class="impact.card.exceeds_limit ? 'bg-over-soft' : 'bg-brand-soft'"
+        >
+          <div class="flex items-start gap-2.5">
+            <component
+              :is="impact.card.exceeds_limit ? AlertTriangle : CreditCard"
+              class="mt-0.5 h-4 w-4 shrink-0"
+              :class="impact.card.exceeds_limit ? 'text-over' : 'text-brand'"
+              aria-hidden="true"
+            />
+            <div class="min-w-0 flex-1 text-sm">
+              <p class="font-semibold" :class="impact.card.exceeds_limit ? 'text-over' : 'text-ink'">
+                {{ impact.headline }}
+              </p>
+              <p class="mt-0.5 text-ink-muted">
+                {{ impact.card.name }} balance
+                <MoneyText :amount="impact.card.balance_before" size="sm" /> →
+                <MoneyText :amount="impact.card.balance_after" size="sm" class="font-semibold text-ink" />
+                <template v-if="impact.card.available_after !== null">
+                  · <MoneyText :amount="impact.card.available_after" size="sm" class="font-semibold text-ink" />
+                  of credit left
+                </template>
+              </p>
+              <p class="mt-0.5 text-xs text-ink-subtle">
+                Nothing comes out of this week's budget. The bill will.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- What this expense does to the week, worked out before it is saved. -->
       <div v-if="impact?.week" class="-mt-2">

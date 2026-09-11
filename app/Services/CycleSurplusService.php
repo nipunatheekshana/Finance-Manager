@@ -32,6 +32,18 @@ class CycleSurplusService
         private readonly AuditService $audit,
     ) {}
 
+    /** What went on cards during the cycle: leftover cash that is spoken for. */
+    private function cardChargesFor(MonthlyPlan $plan): string
+    {
+        return Money::of(
+            \App\Models\Expense::query()
+                ->where('user_id', $plan->user_id)
+                ->whereNotNull('debt_id')
+                ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
+                ->sum('amount')
+        );
+    }
+
     /**
      * What a finished cycle left over.
      *
@@ -71,6 +83,9 @@ class CycleSurplusService
             'buffer' => Money::of($plan->buffer),
             'buffer_used' => Money::of($plan->buffer_used),
             'unused_buffer' => $unusedBuffer,
+            // Cash that was not spent because a card was used instead. It is in
+            // the account, but the bill will come for it.
+            'card_charges' => $this->cardChargesFor($plan),
             'total' => $total,
             'has_surplus' => Money::isPositive($total),
             'cycle_ended' => $cycleEnded,

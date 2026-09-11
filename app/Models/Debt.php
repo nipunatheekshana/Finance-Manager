@@ -102,6 +102,19 @@ class Debt extends Model
     }
 
     /** Credit utilisation, or null when the debt has no limit. */
+    /**
+     * What the card can still be charged. Never stored: balance + available
+     * always equals the limit because this is how available is defined.
+     */
+    public function availableCredit(): ?string
+    {
+        if ($this->credit_limit === null) {
+            return null;
+        }
+
+        return Money::floorAtZero(Money::sub($this->credit_limit, $this->current_balance));
+    }
+
     public function utilisationPercentage(): ?float
     {
         if ($this->credit_limit === null || Money::isZero($this->credit_limit)) {

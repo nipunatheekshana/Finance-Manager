@@ -33,9 +33,19 @@ class ExpenseImpactService
         ?string $date = null,
         ?int $categoryId = null,
         ?int $excludeExpenseId = null,
+        ?int $paymentMethodId = null,
     ): array {
         $amount = Money::of($amount);
         $on = CarbonImmutable::parse($date ?? CarbonImmutable::today())->startOfDay();
+
+        // On a card, nothing in the plan moves: the purchase goes on the card
+        // and the card's available credit absorbs it. So the preview is about
+        // the card, and there is no week to warn about.
+        $card = $this->cardFor($user, $paymentMethodId);
+
+        if ($card !== null) {
+            return $this->cardResult($card, $amount, $on, $user, $excludeExpenseId);
+        }
 
         $plan = $this->plans->activePlanFor($user, $on);
 
@@ -84,6 +94,7 @@ class ExpenseImpactService
             'month' => $monthImpact,
             'category' => $categoryImpact,
             'allowance' => $allowance,
+            'card' => null,
             'buffer_remaining' => $plan->bufferRemaining(),
 
             // The case that needs a decision: this expense is what tips the
@@ -277,6 +288,77 @@ class ExpenseImpactService
             .' would be left for the rest of week '.$week['week_number'].'.';
     }
 
+    /** The card behind a payment method, when there is one. */
+    private function cardFor(User $user, ?int $paymentMethodId): ?\App\Models\Debt
+    {
+        if ($paymentMethodId === null) {
+            return null;
+        }
+
+        $method = $user->paymentMethods()->whereKey($paymentMethodId)->first();
+
+        if ($method === null || $method->debt_id === null) {
+            return null;
+        }
+
+        return $user->debts()->whereKey($method->debt_id)->first();
+    }
+
+    /**
+     * What a card purchase would do to the card.
+     *
+     * @return array<string, mixed>
+     */
+    private function cardResult(
+        \App\Models\Debt $card,
+        string $amount,
+        CarbonImmutable $on,
+        User $user,
+        ?int $excludeExpenseId,
+    ): array {
+        // When editing a purchase already on this card, its amount is already
+        // in the balance.
+        $existing = $excludeExpenseId === null
+            ? '0.00'
+            : Money::of($user->expenses()->whereKey($excludeExpenseId)->where('debt_id', $card->id)->value('amount') ?? 0);
+
+        $balanceBefore = Money::floorAtZero(Money::sub($card->current_balance, $existing));
+        $balanceAfter = Money::add($balanceBefore, $amount);
+        $limit = $card->credit_limit === null ? null : Money::of($card->credit_limit);
+        $availableAfter = $limit === null ? null : Money::floorAtZero(Money::sub($limit, $balanceAfter));
+        $overLimit = $limit === null ? '0.00' : Money::floorAtZero(Money::sub($balanceAfter, $limit));
+
+        return [
+            'amount' => $amount,
+            'date' => $on->toDateString(),
+            'has_plan' => true,
+            'week' => null,
+            'month' => null,
+            'category' => null,
+            'allowance' => null,
+            'card' => [
+                'debt_id' => $card->id,
+                'name' => $card->name,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'credit_limit' => $limit,
+                'available_after' => $availableAfter,
+                'exceeds_limit' => Money::isPositive($overLimit),
+                'over_limit_by' => $overLimit,
+            ],
+            'buffer_remaining' => '0.00',
+            'will_exceed_week' => false,
+            'already_over_week' => false,
+            'will_exceed_category' => false,
+            'needs_decision' => false,
+            'headline' => Money::isPositive($overLimit)
+                ? 'This takes '.$card->name.' LKR '.number_format((float) $overLimit, 2).' past its limit — the bank would decline it.'
+                : 'Goes on '.$card->name.($availableAfter === null
+                    ? '.'
+                    : ' — LKR '.number_format((float) $availableAfter, 2).' of credit left after this.'),
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function noPlanResult(string $amount): array
     {
@@ -287,6 +369,7 @@ class ExpenseImpactService
             'month' => null,
             'category' => null,
             'allowance' => null,
+            'card' => null,
             'buffer_remaining' => '0.00',
             'will_exceed_week' => false,
             'already_over_week' => false,

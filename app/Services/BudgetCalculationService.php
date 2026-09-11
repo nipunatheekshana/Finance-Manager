@@ -43,6 +43,7 @@ class BudgetCalculationService
             Expense::query()
                 ->where('user_id', $userId)
                 ->discretionary()
+                ->cash()
                 ->when($excludeCategoryIds !== [], fn ($q) => $q->whereNotIn('category_id', $excludeCategoryIds))
                 ->between($start->toDateString(), $end->toDateString())
                 ->sum('amount')
@@ -58,6 +59,7 @@ class BudgetCalculationService
             Expense::query()
                 ->where('user_id', $userId)
                 ->discretionary()
+                ->cash()
                 ->when($excludeCategoryIds !== [], fn ($q) => $q->whereNotIn('category_id', $excludeCategoryIds))
                 ->onDate($date->toDateString())
                 ->sum('amount')
@@ -240,6 +242,7 @@ class BudgetCalculationService
         return Expense::query()
             ->where('user_id', $userId)
             ->discretionary()
+            ->cash()
             ->whereIn('category_id', $categoryIds)
             ->between($start->toDateString(), $end->toDateString())
             ->selectRaw('category_id, SUM(amount) as total')
@@ -453,8 +456,10 @@ class BudgetCalculationService
      */
     public function categorySummaries(MonthlyPlan $plan): array
     {
+        // Category budgets reserve cash too, so card purchases stay out.
         $spendByCategory = Expense::query()
             ->where('user_id', $plan->user_id)
+            ->cash()
             ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
             ->selectRaw('category_id, SUM(amount) as total')
             ->groupBy('category_id')
@@ -516,8 +521,10 @@ class BudgetCalculationService
         $daysRemaining = $this->cycles->remainingDays($today, $end);
 
 
+        // Category budgets reserve cash too, so card purchases stay out.
         $spendByCategory = Expense::query()
             ->where('user_id', $plan->user_id)
+            ->cash()
             ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
             ->selectRaw('category_id, SUM(amount) as total')
             ->groupBy('category_id')

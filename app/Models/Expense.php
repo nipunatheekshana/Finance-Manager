@@ -87,4 +87,17 @@ class Expense extends Model
     {
         return $query->whereNull('recurring_transaction_id');
     }
+
+    /**
+     * Paid with money, not with a card.
+     *
+     * The plan runs on a cash basis: a card purchase moves no cash out of the
+     * account, so it is not spending against any pool the plan divides up. It
+     * lives on the card until the bill is paid, and paying the bill is what the
+     * debt allocation is for.
+     */
+    public function scopeCash(Builder $query): Builder
+    {
+        return $query->whereNull('debt_id');
+    }
 }

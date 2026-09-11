@@ -415,11 +415,35 @@ actually are — **bills still to pay**, **debt payments still to make** and
 it. All three were computed by `CashFlowService` from the beginning; only the
 bills were ever shown.
 
-### A credit card being paid down is still a card being used
+### A card purchase moves no cash — the plan runs on a cash basis
 
-Spending on a payment method linked to a debt raises that debt's balance
-immediately, and the payoff estimate is recalculated from the real balance.
-Payoff dates are always labelled as estimates.
+Every credit card is a debt with its own linked payment method, so a purchase
+is always attributable to the specific card it was charged to. Paying with a
+card does exactly two things, and nothing else:
+
+```
+balance    += amount            the card's debt goes up
+available   = limit − balance   derived, never stored — so the two always add
+                                up to the bank's limit, whatever happens
+```
+
+**It touches nothing in the plan.** Not the week, not the day, not the
+spending budget, not an allowance, not a category budget. Those all divide up
+*cash*, and swiping a card moves no cash out of the account. The cash leaves
+when the bill is paid — and paying the bill is what the debt allocation is for.
+Cash purchases behave as they always did.
+
+Because the till is now frictionless, the accountability moves to the bill.
+Each card reports **what was charged this cycle against the planned payment**;
+charge more than the plan pays back and the card is *growing*, which is flagged
+on the dashboard and as an alert with the exact figure. The expense preview
+speaks about the card rather than the week — *"Goes on Visa — 194,000 of credit
+left after this"* — and a purchase the bank would decline is called out as
+such. The month-end leftover looks larger on a cash basis, so it says how much
+of it went on cards and steers towards paying the debt.
+
+The one figure that is deliberately **not** on a cash basis is the expense
+history and the reports: a purchase is a purchase, whichever way it was paid.
 
 ### Leftover money does not evaporate
 
@@ -641,7 +665,7 @@ deploy onto every installed device.
 ## Testing
 
 ```bash
-php artisan test           # 383 tests
+php artisan test           # 391 tests
 npx vue-tsc --noEmit       # strict type check
 npm run build
 ```

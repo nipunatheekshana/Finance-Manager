@@ -170,6 +170,10 @@ onMounted(async () => {
               <dt class="text-xs text-ink-subtle">Credit limit</dt>
               <dd class="mt-0.5"><MoneyText :amount="debt.credit_limit" size="sm" class="font-semibold" /></dd>
             </div>
+            <div v-if="debt.available_credit !== null">
+              <dt class="text-xs text-ink-subtle">Available to charge</dt>
+              <dd class="mt-0.5"><MoneyText :amount="debt.available_credit" size="sm" class="font-semibold" /></dd>
+            </div>
             <div v-if="debt.utilisation_percentage !== null">
               <dt class="text-xs text-ink-subtle">Utilisation</dt>
               <dd class="tabular mt-0.5 text-sm font-semibold text-ink">

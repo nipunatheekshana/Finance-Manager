@@ -129,6 +129,17 @@ export interface ExpenseImpact {
   category: CategoryProjection | null
   /** Null unless the category is an allowance in the active plan. */
   allowance: AllowanceProjection | null
+  /** Set when paying by card: the purchase is about the card, not the week. */
+  card: {
+    debt_id: number
+    name: string
+    balance_before: Money
+    balance_after: Money
+    credit_limit: Money | null
+    available_after: Money | null
+    exceeds_limit: boolean
+    over_limit_by: Money
+  } | null
   buffer_remaining: Money
   /** This expense is what tips the week over. */
   will_exceed_week: boolean

@@ -192,6 +192,19 @@ const CHOICES = [
             <dd><MoneyText :amount="options.total" size="xl" class="font-bold" /></dd>
           </div>
         </dl>
+
+        <!-- On a cash basis, money not spent because a card was swiped instead
+             shows up here as leftover. It is in the account — but spoken for. -->
+        <p
+          v-if="amountToNumber(options.card_charges) > 0"
+          class="mt-3 flex items-start gap-1.5 rounded-[var(--radius-field)] bg-warn-soft p-2.5 text-xs text-warn"
+        >
+          <CreditCard class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            <MoneyText :amount="options.card_charges" size="xs" class="font-semibold" /> of this went
+            on your cards during the cycle. The bill will want it — paying a debt is the safe choice.
+          </span>
+        </p>
       </div>
 
       <div>

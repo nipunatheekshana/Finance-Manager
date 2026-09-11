@@ -144,6 +144,33 @@ class DashboardService
     {
         $debts = $user->debts()->active()->orderByDesc('current_balance')->get();
 
+        // On a cash basis the till is frictionless, so the accountability
+        // moves to the bill: how much went on each card this cycle, against
+        // what the plan pays back.
+        $plan = $this->plans->activePlanFor($user);
+        $chargedByCard = $plan === null ? collect() : \App\Models\Expense::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('debt_id')
+            ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
+            ->selectRaw('debt_id, SUM(amount) as total')
+            ->groupBy('debt_id')
+            ->pluck('total', 'debt_id');
+
+        $cardFigures = function ($card) use ($chargedByCard) {
+            $charged = Money::of($chargedByCard[$card->id] ?? 0);
+            $planned = Money::of($card->planned_payment);
+            $net = Money::sub($charged, $planned);
+
+            return [
+                'credit_limit' => $card->credit_limit === null ? null : Money::of($card->credit_limit),
+                'available_credit' => $card->availableCredit(),
+                'charged_this_cycle' => $charged,
+                // Positive means the card grew this cycle: charged more than paid.
+                'net_change' => $net,
+                'is_growing' => Money::isPositive($net),
+            ];
+        };
+
         // Cards are ranked by balance so the one that matters most leads, but
         // every card is returned: an account can hold any number of them and
         // each carries its own balance and payoff.
@@ -166,7 +193,7 @@ class DashboardService
                 'progress_percentage' => $primaryCard->progressPercentage(),
                 'utilisation_percentage' => $primaryCard->utilisationPercentage(),
                 'payoff' => $this->payoff->project($primaryCard),
-            ],
+            ] + $cardFigures($primaryCard),
             'credit_cards' => [
                 'count' => $creditCards->count(),
                 'total_balance' => Money::sum($creditCards->pluck('current_balance')),
@@ -179,7 +206,7 @@ class DashboardService
                     'planned_payment' => Money::of($card->planned_payment),
                     'progress_percentage' => $card->progressPercentage(),
                     'utilisation_percentage' => $card->utilisationPercentage(),
-                ])->all(),
+                ] + $cardFigures($card))->all(),
             ],
             'items' => $debts->map(fn ($debt) => [
                 'id' => $debt->id,

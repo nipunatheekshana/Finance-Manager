@@ -700,16 +700,80 @@ class AlertService
             return;
         }
 
+        $available = $debt->availableCredit();
+
         $this->raise(
             $user,
             AlertType::CreditCardIncreased,
             $debt->name.' balance went up',
-            'New spending of LKR '.number_format((float) $expense->amount, 2).' brought your '.$debt->name.' balance to LKR '.number_format((float) $debt->current_balance, 2).'. Your payoff estimate has been updated.',
-            AlertSeverity::Warning,
+            'LKR '.number_format((float) $expense->amount, 2).' went on '.$debt->name.'. Balance LKR '
+                .number_format((float) $debt->current_balance, 2)
+                .($available === null ? '' : ', LKR '.number_format((float) $available, 2).' of credit left')
+                .'. Nothing came out of your weekly budget; the bill will.',
+            AlertSeverity::Info,
             reference: 'debt:'.$debt->id,
             data: ['debt_id' => $debt->id, 'balance' => Money::of($debt->current_balance)],
             actionLabel: 'View debt',
             actionRoute: '/debts',
+        );
+
+        $this->checkCreditCardGrowing($user, $debt);
+    }
+
+    /**
+     * A purchase has left a card — moved to cash, moved to another card, or
+     * deleted — so what that card charged this cycle has gone down.
+     */
+    public function afterCardChargeRemoved(User $user, int $debtId): void
+    {
+        $debt = $user->debts()->whereKey($debtId)->first();
+
+        if ($debt !== null) {
+            $this->checkCreditCardGrowing($user, $debt);
+        }
+    }
+
+    /**
+     * Card purchases do not touch the plan, so the one thing to watch is the
+     * bill: charging more in a cycle than the plan pays back means the balance
+     * is going up, however the weeks look.
+     */
+    private function checkCreditCardGrowing(User $user, Debt $debt): void
+    {
+        $plan = $this->plans->activePlanFor($user);
+
+        if ($plan === null) {
+            return;
+        }
+
+        $charged = Money::of(
+            Expense::query()
+                ->where('user_id', $user->id)
+                ->where('debt_id', $debt->id)
+                ->between($plan->cycle_start_date->toDateString(), $plan->cycle_end_date->toDateString())
+                ->sum('amount')
+        );
+        $planned = Money::of($debt->planned_payment);
+        $reference = 'card-growing:'.$debt->id;
+
+        if (! Money::gt($charged, $planned)) {
+            $this->withdraw($user, AlertType::CreditCardGrowing, $reference);
+
+            return;
+        }
+
+        $this->raise(
+            $user,
+            AlertType::CreditCardGrowing,
+            $debt->name.' is growing this cycle',
+            'LKR '.number_format((float) $charged, 2).' charged so far against a planned payment of LKR '
+                .number_format((float) $planned, 2).'. Unless you pay more than planned, the balance ends the cycle LKR '
+                .number_format((float) Money::sub($charged, $planned), 2).' higher.',
+            AlertSeverity::Warning,
+            reference: $reference,
+            data: ['debt_id' => $debt->id, 'charged' => $charged, 'planned' => $planned],
+            actionLabel: 'View debt',
+            actionRoute: '/debts/'.$debt->id,
         );
     }
 
@@ -724,7 +788,8 @@ class AlertService
         return $profile->wantsNotification(match ($type) {
             AlertType::SalaryReceived, AlertType::SalaryTomorrow => 'cycle_start_day',
             AlertType::BillDueSoon => 'upcoming_bills',
-            AlertType::DebtPaymentDue, AlertType::CreditCardIncreased => 'debt_payments',
+            AlertType::DebtPaymentDue, AlertType::CreditCardIncreased,
+            AlertType::CreditCardGrowing => 'debt_payments',
             AlertType::BudgetWarning, AlertType::CategoryBudgetWarning => 'budget_warnings',
             AlertType::BudgetExceeded, AlertType::CategoryBudgetExceeded => 'budget_exceeded',
             AlertType::SavingsTargetReached => 'savings_goals',

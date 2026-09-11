@@ -118,6 +118,8 @@ export interface CycleSurplus {
   buffer: Money
   buffer_used: Money
   unused_buffer: Money
+  /** Cash left unspent because a card was used instead — the bill will want it. */
+  card_charges: Money
   total: Money
   has_surplus: boolean
   cycle_ended: boolean

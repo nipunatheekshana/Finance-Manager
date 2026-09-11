@@ -66,6 +66,13 @@ export interface DashboardDebtItem {
 }
 
 export interface DashboardCreditCard {
+  credit_limit: Money | null
+  /** limit − balance, derived: the two always add up to the limit. */
+  available_credit: Money | null
+  charged_this_cycle: Money
+  /** Charged minus planned payment; positive means the card is growing. */
+  net_change: Money
+  is_growing: boolean
   id: number
   name: string
   balance: Money
@@ -94,6 +101,13 @@ export interface DashboardDebts {
     progress_percentage: number
     utilisation_percentage: number | null
     payoff: PayoffProjection
+    credit_limit: Money | null
+    /** limit − balance, derived: the two always add up to the limit. */
+    available_credit: Money | null
+    charged_this_cycle: Money
+    /** Charged minus planned payment; positive means the card is growing. */
+    net_change: Money
+    is_growing: boolean
   } | null
   items: DashboardDebtItem[]
 }

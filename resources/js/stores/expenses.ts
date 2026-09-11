@@ -182,6 +182,7 @@ export const useExpenseStore = defineStore('expenses', () => {
     expense_date?: string
     category_id?: number | null
     expense_id?: number | null
+    payment_method_id?: number | null
   }): Promise<ExpenseImpact> {
     const response = await api.post<{ data: ExpenseImpact }>('/expenses/preview', draft)
     return response.data

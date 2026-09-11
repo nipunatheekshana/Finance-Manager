@@ -25,6 +25,12 @@ const payoffText = computed(() => {
   return `About ${payoff.estimated_months} ${payoff.estimated_months === 1 ? 'month' : 'months'} left — around ${payoff.estimated_payoff_label}.`
 })
 
+const chargedTotal = computed(() =>
+  (cards.value?.items ?? [])
+    .reduce((sum, card) => sum + Number.parseFloat(card.charged_this_cycle), 0)
+    .toFixed(2),
+)
+
 const utilisation = computed(() => {
   const limit = Number.parseFloat(cards.value?.total_limit ?? '0')
   const balance = Number.parseFloat(cards.value?.total_balance ?? '0')
@@ -54,6 +60,11 @@ const utilisation = computed(() => {
     <p v-if="utilisation !== null" class="mt-1 flex items-center justify-between text-sm">
       <span class="text-ink-muted">Combined usage</span>
       <span class="tabular font-semibold text-ink">{{ utilisation.toFixed(0) }}%</span>
+    </p>
+
+    <p class="mt-1 flex items-center justify-between text-sm">
+      <span class="text-ink-muted">Charged this cycle</span>
+      <MoneyText :amount="chargedTotal" size="sm" class="font-semibold" />
     </p>
 
     <ul class="mt-4 space-y-3 border-t border-line pt-3">
@@ -109,9 +120,19 @@ const utilisation = computed(() => {
       <MoneyText :amount="primary.planned_payment" size="sm" class="font-semibold" />
     </div>
 
-    <p v-if="primary.utilisation_percentage !== null" class="mt-1 flex items-center justify-between text-sm">
-      <span class="text-ink-muted">Card usage</span>
-      <span class="tabular font-semibold text-ink">{{ primary.utilisation_percentage.toFixed(0) }}%</span>
+    <p v-if="primary.available_credit !== null" class="mt-1 flex items-center justify-between text-sm">
+      <span class="text-ink-muted">Available to charge</span>
+      <MoneyText :amount="primary.available_credit" size="sm" class="font-semibold" />
+    </p>
+
+    <!-- Card purchases never touch the weeks, so this is the figure that
+         keeps a card honest: what went on it against what the plan pays back. -->
+    <p class="mt-1 flex items-center justify-between text-sm">
+      <span class="text-ink-muted">Charged this cycle</span>
+      <span class="flex items-center gap-1.5">
+        <MoneyText :amount="primary.charged_this_cycle" size="sm" class="font-semibold" />
+        <span v-if="primary.is_growing" class="badge bg-warn-soft text-warn">Growing</span>
+      </span>
     </p>
 
     <!-- Payoff dates are always presented as estimates. -->
