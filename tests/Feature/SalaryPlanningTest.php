@@ -231,7 +231,7 @@ class SalaryPlanningTest extends TestCase
     }
 
     #[Test]
-    public function only_one_plan_can_be_active_at_a_time(): void
+    public function only_one_plan_is_live_at_a_time_and_the_next_waits_its_turn(): void
     {
         $this->freezeOn('2026-09-25');
         $user = $this->prepareUser();
@@ -240,8 +240,16 @@ class SalaryPlanningTest extends TestCase
         $september = $planner->draftFor($user, 2026, 9);
         $planner->finalize($september);
 
+        // Finalised a month early: it must not close the cycle still running.
         $october = $planner->draftFor($user, 2026, 10);
         $planner->finalize($october);
+
+        $this->assertSame('active', $september->fresh()->status->value);
+        $this->assertSame('scheduled', $october->fresh()->status->value);
+
+        // On October's first day the handover happens by itself.
+        $this->freezeOn('2026-10-25');
+        $planner->activePlanFor($user->fresh());
 
         $this->assertSame('completed', $september->fresh()->status->value);
         $this->assertSame('active', $october->fresh()->status->value);

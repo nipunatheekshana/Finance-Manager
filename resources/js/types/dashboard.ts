@@ -49,6 +49,8 @@ export interface SalarySection {
   cycle_start_day: number
   next_salary_date: string | null
   days_until_salary: number | null
+  /** Whether next cycle is planned ahead: null until a draft exists. */
+  next_plan_status: import('./budget').PlanStatus | null
   is_salary_day: boolean
   needs_planning: boolean
   plan_period: { year: number; month: number }

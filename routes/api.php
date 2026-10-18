@@ -102,6 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | Monthly plans — the salary-day flow.
     */
     Route::get('monthly-plans/current', [MonthlyPlanController::class, 'current']);
+    Route::get('monthly-plans/next', [MonthlyPlanController::class, 'next']);
     Route::get('monthly-plans', [MonthlyPlanController::class, 'index']);
     Route::post('monthly-plans', [MonthlyPlanController::class, 'store']);
 

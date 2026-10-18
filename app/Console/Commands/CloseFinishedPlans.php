@@ -14,9 +14,15 @@ class CloseFinishedPlans extends Command
 
     protected $description = 'Mark active plans whose salary cycle has ended as completed';
 
-    public function handle(BudgetCalculationService $budgets): int
+    public function handle(BudgetCalculationService $budgets, \App\Services\FinancialPlanService $plans): int
     {
         $today = CarbonImmutable::today();
+
+        // Plans finalised ahead of their cycle take over on their first day.
+        $promoted = $plans->activateDuePlans(null, $today);
+        if ($promoted > 0) {
+            $this->info("Activated {$promoted} scheduled ".($promoted === 1 ? 'plan' : 'plans').'.');
+        }
 
         $plans = MonthlyPlan::query()
             ->where('status', PlanStatus::Active->value)

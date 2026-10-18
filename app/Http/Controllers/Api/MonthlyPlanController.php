@@ -67,6 +67,20 @@ class MonthlyPlanController extends Controller
     }
 
     /**
+     * The plan for the cycle after the current one — a draft if none exists —
+     * so next month can be planned before it starts.
+     */
+    public function next(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $profile = $this->plans->profileFor($user);
+
+        $period = app(\App\Services\BudgetCycleService::class)->nextPeriodFor($profile);
+
+        return $this->planResponse($this->plans->draftFor($user, $period['year'], $period['month']));
+    }
+
+    /**
      * Open (or create) the draft for a specific month.
      */
     public function store(Request $request): JsonResponse

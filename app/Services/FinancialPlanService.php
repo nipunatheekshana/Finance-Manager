@@ -603,15 +603,24 @@ class FinancialPlanService
                 $this->applyWeeklyBudgets($plan);
             }
 
-            // Only one plan can be active at a time.
-            MonthlyPlan::query()
-                ->where('user_id', $plan->user_id)
-                ->where('id', '!=', $plan->id)
-                ->where('status', PlanStatus::Active->value)
-                ->update(['status' => PlanStatus::Completed->value, 'completed_at' => now()]);
+            // A plan finalised before its cycle starts waits as "scheduled".
+            // Making it active now would close the cycle that is still
+            // running; instead it takes over by itself on its first day.
+            $startsLater = CarbonImmutable::instance($plan->cycle_start_date)
+                ->startOfDay()
+                ->gt(CarbonImmutable::today()->startOfDay());
+
+            if (! $startsLater) {
+                // Only one plan can be active at a time.
+                MonthlyPlan::query()
+                    ->where('user_id', $plan->user_id)
+                    ->where('id', '!=', $plan->id)
+                    ->where('status', PlanStatus::Active->value)
+                    ->update(['status' => PlanStatus::Completed->value, 'completed_at' => now()]);
+            }
 
             $plan->forceFill([
-                'status' => PlanStatus::Active->value,
+                'status' => ($startsLater ? PlanStatus::Scheduled : PlanStatus::Active)->value,
                 'finalized_at' => now(),
             ])->save();
 
@@ -664,7 +673,7 @@ class FinancialPlanService
      */
     public function reopen(MonthlyPlan $plan): MonthlyPlan
     {
-        $target = $plan->status === PlanStatus::Active
+        $target = in_array($plan->status, [PlanStatus::Active, PlanStatus::Scheduled], true)
             ? PlanStatus::Draft
             : PlanStatus::Active;
 
@@ -680,9 +689,44 @@ class FinancialPlanService
     /**
      * The plan covering today, if the user has finalised one.
      */
+    /**
+     * Scheduled plans whose first day has come take over: they become active
+     * and the cycle they follow is completed. Idempotent, so it is safe to
+     * run on every lookup as well as from the nightly command.
+     */
+    public function activateDuePlans(?User $user = null, ?CarbonImmutable $today = null): int
+    {
+        $today = ($today ?? CarbonImmutable::today())->startOfDay();
+
+        $due = MonthlyPlan::query()
+            ->when($user !== null, fn ($q) => $q->where('user_id', $user->id))
+            ->where('status', PlanStatus::Scheduled->value)
+            ->whereDate('cycle_start_date', '<=', $today->toDateString())
+            ->orderBy('cycle_start_date')
+            ->get();
+
+        foreach ($due as $plan) {
+            DB::transaction(function () use ($plan) {
+                MonthlyPlan::query()
+                    ->where('user_id', $plan->user_id)
+                    ->where('id', '!=', $plan->id)
+                    ->where('status', PlanStatus::Active->value)
+                    ->update(['status' => PlanStatus::Completed->value, 'completed_at' => now()]);
+
+                $plan->forceFill(['status' => PlanStatus::Active->value])->save();
+
+                $this->attachExistingExpenses($plan);
+            });
+        }
+
+        return $due->count();
+    }
+
     public function activePlanFor(User $user, ?CarbonImmutable $today = null): ?MonthlyPlan
     {
         $today = ($today ?? CarbonImmutable::today())->startOfDay();
+
+        $this->activateDuePlans($user, $today);
 
         return MonthlyPlan::query()
             ->where('user_id', $user->id)

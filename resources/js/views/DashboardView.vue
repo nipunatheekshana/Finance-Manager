@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Calculator, PiggyBank, PlusCircle, Receipt, Wallet } from 'lucide-vue-next'
+import { CalendarCheck, Calculator, ChevronRight, PiggyBank, PlusCircle, Receipt, Wallet } from 'lucide-vue-next'
 import AvailableCard from '@/components/dashboard/AvailableCard.vue'
 import TodayCard from '@/components/dashboard/TodayCard.vue'
 import WeekCard from '@/components/dashboard/WeekCard.vue'
@@ -157,6 +157,31 @@ onMounted(() => {
       </button>
 
       <SalaryDayBanner v-if="data.salary.needs_planning" :salary="data.salary" />
+
+      <!-- The last week of a cycle is when next month gets planned. Once it
+           is scheduled there is nothing to nag about. -->
+      <RouterLink
+        v-else-if="
+          data.salary.has_pay_day &&
+          data.salary.days_until_salary !== null &&
+          data.salary.days_until_salary <= 7 &&
+          data.salary.next_plan_status !== 'scheduled'
+        "
+        to="/plan?cycle=next"
+        class="flex items-center gap-3 rounded-[var(--radius-card)] border border-brand/40 bg-brand-soft p-4 transition hover:shadow-[var(--shadow-card)]"
+      >
+        <CalendarCheck class="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold text-ink">
+            {{ data.salary.next_plan_status === 'draft' ? 'Finish planning next cycle' : 'Plan next cycle ahead' }}
+          </span>
+          <span class="block text-xs text-ink-muted">
+            Salary in {{ data.salary.days_until_salary }} {{ data.salary.days_until_salary === 1 ? 'day' : 'days' }}.
+            Build the plan now and it takes over on the day.
+          </span>
+        </span>
+        <ChevronRight class="h-4 w-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+      </RouterLink>
 
       <template v-if="data.has_plan">
         <AvailableCard

@@ -63,6 +63,17 @@ export const useBudgetStore = defineStore('budget', () => {
     }
   }
 
+  /** The cycle after the current one, as a draft if it has not been started. */
+  async function loadNext(): Promise<void> {
+    loading.value = true
+    try {
+      absorb(await api.get<PlanResponse>('/monthly-plans/next'))
+      await loadWeeks()
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function load(planId: number): Promise<void> {
     loading.value = true
     try {
@@ -323,6 +334,7 @@ export const useBudgetStore = defineStore('budget', () => {
     currentWeek,
     overspentWeeks,
     loadCurrent,
+    loadNext,
     load,
     loadHistory,
     createFor,

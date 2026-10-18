@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Ban, Check, CheckCircle2,
   Clock, Pencil, Plus, PlusCircle, RotateCcw, Wallet,
 } from 'lucide-vue-next'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import MoneyText from '@/components/common/MoneyText.vue'
 import TextField from '@/components/common/TextField.vue'
@@ -27,6 +28,40 @@ const budget = useBudgetStore()
 const dashboard = useDashboardStore()
 const ui = useUiStore()
 const router = useRouter()
+const route = useRoute()
+
+/** Which cycle is on screen. Next month can be planned before it starts. */
+const cycle = ref<'current' | 'next'>(route.query.cycle === 'next' ? 'next' : 'current')
+const CYCLE_OPTIONS = [
+  { value: 'current', label: 'This cycle' },
+  { value: 'next', label: 'Next cycle' },
+]
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  active: 'Active',
+  scheduled: 'Scheduled',
+  completed: 'Completed',
+}
+
+/** The cycle has not begun, so finalising schedules it rather than starting it. */
+const startsLater = computed(
+  () => plan.value !== null && plan.value.cycle_start_date > new Date().toISOString().slice(0, 10),
+)
+
+async function loadCycle(): Promise<void> {
+  if (cycle.value === 'next') await budget.loadNext()
+  else await budget.loadCurrent()
+  seedWeekInputs()
+  await Promise.all([loadAllowances(), loadPendingDebts()])
+}
+
+async function switchCycle(value: string): Promise<void> {
+  cycle.value = value === 'next' ? 'next' : 'current'
+  step.value = 0
+  void router.replace({ query: cycle.value === 'next' ? { cycle: 'next' } : {} })
+  await loadCycle()
+}
 
 const step = ref(0)
 const actualIncome = ref('')
@@ -161,15 +196,11 @@ async function saveAllowances(): Promise<void> {
   ui.success('Allowances saved')
 }
 
-onMounted(async () => {
-  await budget.loadCurrent()
-  seedWeekInputs()
-  await Promise.all([loadAllowances(), loadPendingDebts()])
-})
+onMounted(loadCycle)
 
 function guardEditable(): boolean {
   if (!isFinalized.value) return true
-  ui.info('This plan is already active', 'Reopen it from the bottom of this page to make changes.')
+  ui.info('This plan is locked', 'Reopen it from the bottom of this page to make changes.')
   return false
 }
 
@@ -286,10 +317,16 @@ function splitEvenly(): void {
 
 async function finalize(): Promise<void> {
   try {
+    const scheduling = startsLater.value
     await saveWeeks()
     await budget.finalize()
     await dashboard.refresh()
-    ui.success('Plan is live', 'Your weekly budgets are now in force.')
+    ui.success(
+      scheduling ? 'Plan scheduled' : 'Plan is live',
+      scheduling
+        ? `It takes over by itself on ${formatDate(plan.value?.cycle_start_date ?? '', true)}. This cycle carries on as it is.`
+        : 'Your weekly budgets are now in force.',
+    )
     void router.push({ name: 'dashboard' })
   } catch (error) {
     if (error instanceof ApiError) {
@@ -322,7 +359,7 @@ async function reopen(): Promise<void> {
       :title="plan ? plan.label : 'Monthly plan'"
       :subtitle="
         plan
-          ? `${formatDateRange(plan.cycle_start_date, plan.cycle_end_date)} · ${plan.status === 'draft' ? 'Draft' : plan.status === 'active' ? 'Active' : 'Completed'}`
+          ? `${formatDateRange(plan.cycle_start_date, plan.cycle_end_date)} · ${STATUS_LABEL[plan.status] ?? plan.status}`
           : undefined
       "
     />
@@ -330,6 +367,20 @@ async function reopen(): Promise<void> {
     <LoadingState v-if="budget.loading && !plan" :rows="3" />
 
     <div v-else-if="plan && summary" class="space-y-5">
+      <!-- Plan ahead: the next cycle can be built and scheduled while this
+           one is still running, and takes over on its own first day. -->
+      <SegmentedControl
+        :model-value="cycle"
+        :options="CYCLE_OPTIONS"
+        aria-label="Which cycle to plan"
+        @update:model-value="switchCycle"
+      />
+
+      <p v-if="plan.status === 'scheduled'" class="rounded-[var(--radius-card)] bg-brand-soft p-3 text-sm text-ink">
+        Scheduled. It starts on <span class="font-semibold">{{ formatDate(plan.cycle_start_date, true) }}</span>
+        and replaces this cycle's plan by itself that day. Reopen it below to change anything.
+      </p>
+
       <!-- Step rail -->
       <ol class="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Planning steps">
         <!-- shrink-0 belongs on the flex item: on the button it let the rail
@@ -854,7 +905,7 @@ async function reopen(): Promise<void> {
           @click="finalize"
         >
           <Wallet class="h-4 w-4" aria-hidden="true" />
-          {{ budget.saving ? 'Finalising…' : 'Finalise plan' }}
+          {{ budget.saving ? (startsLater ? 'Scheduling…' : 'Finalising…') : startsLater ? 'Schedule plan' : 'Finalise plan' }}
         </button>
       </div>
 
@@ -866,10 +917,10 @@ async function reopen(): Promise<void> {
       <div v-if="isFinalized" class="card p-4">
         <p class="text-sm font-semibold text-ink">This plan is {{ plan.status }}</p>
         <p class="mt-1 text-sm text-ink-muted">
-          <template v-if="plan.status === 'active'">
+          <template v-if="plan.status === 'active' || plan.status === 'scheduled'">
             Reopening puts it back in draft so every step — including
-            allowances — can be changed. Finalise again when you are done.
-            Your spending, payments and history are kept.
+            allowances — can be changed. {{ plan.status === 'scheduled' ? 'Schedule' : 'Finalise' }} it again
+            when you are done. Your spending, payments and history are kept.
           </template>
           <template v-else>
             Reopen it to make corrections. The change is recorded in your audit

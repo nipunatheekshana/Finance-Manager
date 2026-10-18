@@ -1,6 +1,7 @@
 import type { BudgetStatus, Money } from './common'
 
-export type PlanStatus = 'draft' | 'active' | 'completed'
+/** Scheduled: finalised before its cycle starts; goes active on its first day. */
+export type PlanStatus = 'draft' | 'active' | 'scheduled' | 'completed'
 
 export interface WeeklyBudget {
   id: number

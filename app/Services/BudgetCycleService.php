@@ -106,6 +106,19 @@ class BudgetCycleService
     }
 
     /**
+     * The period after the one covering today — the cycle to plan ahead for.
+     *
+     * @return array{year: int, month: int}
+     */
+    public function nextPeriodFor(FinancialProfile $profile, ?CarbonInterface $today = null): array
+    {
+        $current = $this->currentPeriodFor($profile, $today);
+        [, $end] = $this->cycleFor($current['year'], $current['month'], $profile);
+
+        return $this->periodFor(CarbonImmutable::instance($end)->addDay(), $profile);
+    }
+
+    /**
      * The next date a salaried user is paid. Meaningless without a pay-day
      * anchor, so callers should check the mode first.
      */

@@ -234,6 +234,18 @@ weekly budgets are re-cut on that second finalise, because the pool they divide
 has just shrunk — leaving them alone would keep handing out the old, larger
 figure every week.
 
+### Next month can be planned before it starts
+
+The planner has a **This cycle / Next cycle** switch. Next cycle's plan is
+built the same way and, when finalised ahead of its first day, becomes
+**scheduled** rather than active: the running cycle is left exactly as it is,
+and the scheduled plan takes over by itself on its start date — on the first
+request that day, or by the nightly job, whichever comes first — completing
+the cycle it follows. Finalising a plan whose cycle has already begun still
+goes live at once. A scheduled plan reopens to draft like an active one. The
+dashboard nudges towards planning ahead in the last week of a cycle, and stops
+once the next plan is scheduled.
+
 ### Recording the salary twice is a correction, not a second pay cheque
 
 Salary day gets re-entered: a typo is fixed, or the figure is saved again once

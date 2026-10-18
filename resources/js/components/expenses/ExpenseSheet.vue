@@ -244,7 +244,25 @@ async function submit(): Promise<void> {
       if (result.queued) {
         ui.info('Expense saved locally', 'It will sync automatically when you reconnect.')
       } else {
-        ui.success(`${formatLKR(draft.amount)} logged`)
+        // If money was moved to cover the pot, say so out loud — a buffer or
+        // a goal shrinking without a word is how a save feels like a mystery.
+        const cover = draft.allowance_top_up
+        const coverLabel = cover
+          ? {
+              allowance: 'another allowance',
+              spending: "this week's money",
+              buffer: 'your buffer',
+              savings: "this month's savings",
+              savings_withdrawal: 'money already saved',
+            }[cover.source]
+          : null
+
+        ui.success(
+          `${formatLKR(draft.amount)} logged`,
+          cover && coverLabel
+            ? `${formatLKR(cover.amount)} of it was covered from ${coverLabel}.`
+            : undefined,
+        )
         savedWeek = result.week ?? null
       }
     }

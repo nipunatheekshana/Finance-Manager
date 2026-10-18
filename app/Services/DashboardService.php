@@ -105,6 +105,12 @@ class DashboardService
             ->where('month', $period['month'])
             ->first();
 
+        $nextPeriod = $this->cycles->nextPeriodFor($profile, $today);
+        $nextPlan = $user->monthlyPlans()
+            ->where('year', $nextPeriod['year'])
+            ->where('month', $nextPeriod['month'])
+            ->first();
+
         $funding = $this->income->fundingFor($user, $period['year'], $period['month'], $profile);
         $isSalaried = $profile->hasSalary();
 
@@ -134,6 +140,8 @@ class DashboardService
             // Prompt the salary-day flow while the cycle's plan is unfinished.
             'needs_planning' => $currentPlan === null || $currentPlan->isDraft(),
             'plan_period' => $period,
+            // Whether next cycle has been planned ahead: null, draft or scheduled.
+            'next_plan_status' => $nextPlan?->status->value,
         ];
     }
 
